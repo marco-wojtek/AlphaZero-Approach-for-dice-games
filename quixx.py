@@ -135,8 +135,10 @@ class quixx:
                 if len(vals) == 1 and curr_player==current_player:
                     r=True
             else:
-                #bot_player
-                return 0
+                #bot_player random          
+                # selects a random row to enter the white dice value; if not successful due to invalid option or other. white dice are ignored    
+                if self.sheets[curr_player].enter_throw(random.randint(1,5),white_dice_val,self.closed_rows) != -1 and curr_player==current_player:
+                    r=True
 
             #one roataion around all players
             curr_player = (curr_player+1)%self.num_players
@@ -145,6 +147,31 @@ class quixx:
         return r
     
     def bot_turn(self,current_player):
+        #Bot first randomly decides to enter the white dice or not
+        #after that randomly iterate through the choices and test if they can be entered
+        #if in both phases no value was marked select error row
+        print("Player {} (Bot) turn".format(current_player))
+
+        self.throw_dice()
+
+        entered_throw = self.white_dice_rotation(current_player)
+
+        options = self.calc_options(current_player)
+        opt = np.arange(1,5)
+
+        random.shuffle(opt) #shuffled vals
+
+        for i in range(len(opt)):
+            val = opt[i]
+
+            if options[val,0] != 0 and (self.sheets[current_player].enter_throw(val,options[val,0],self.closed_rows) != -1 or self.sheets[current_player].enter_throw(val,options[val,1],self.closed_rows) != -1):
+                entered_throw = True 
+                break
+        if not entered_throw:
+            self.sheets[current_player].enter_throw(5,0,self.closed_rows)
+            
+        print("Player {} (Bot) sheet after the turn".format(current_player))
+        self.sheets[current_player].print_sheet()
         return 0
     
     #human player turn
@@ -208,7 +235,7 @@ class quixx:
             
         
         for i in range(self.num_players):
-            print("Player {} has {} points: ".format(i,self.calc_result()[i]))
+            print("Player {} (is Bot = {} )has {} points: ".format(i,not self.human_players[i],self.calc_result()[i]))
 
     def __init__(self,num_players,human_players):
         assert num_players in [2,3,4] and num_players == len(human_players)
@@ -255,12 +282,11 @@ class quixx:
 
 # TODO: 
 # - handling of point calculation
-# -> point calculation should be able to be done periodically for some AI
 # - white dice turn for bot player 
 # - bot turn
 
 #test human game
-q = quixx(2,[True,True])
+#q = quixx(2,[True,True])
 
-#test bot game
-# q = quixx(2,[False,False])
+#test human/bot game
+q = quixx(2,[True,False])
