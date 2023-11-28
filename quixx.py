@@ -289,4 +289,7 @@ class quixx:
 #q = quixx(2,[True,True])
 
 #test human/bot game
-q = quixx(2,[True,False])
+#q = quixx(2,[True,False])
+
+#test bot game
+q = quixx(2,[False,False])
