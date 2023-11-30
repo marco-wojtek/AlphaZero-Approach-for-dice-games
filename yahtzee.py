@@ -1,6 +1,7 @@
 import numpy as np
 from numpy import random
 import random as r
+import time
 
 #returns a numpy array with num_dice values between 1 and 6 both included
 def dice_throw(num_dice=1):
@@ -78,9 +79,12 @@ chance = lambda x: np.sum(x)
 
 #calculate total result
 def calc_total_res(result):
-    assert len(result) == 13
-    x = 35 if np.sum(result[0:6]) >= 63 else 0 #Bonus
-    return np.sum(result) + x
+    res = np.zeros(len(result))
+    for i in range(len(result)):
+        x = 35 if np.sum(result[i][0:6]) >= 63 else 0 #Bonus
+        res[i] = np.sum(result[i]) + x
+    
+    return res
 
 option_names = np.array(["Ones",
                 "Twos",
@@ -163,9 +167,11 @@ class yahtzee:
                 self.bot_turn(self.res[current_player],True not in self.human_players)
             current_player = (current_player+1)%len(self.res)
         
-        print("Final Results:")
-        for i in range(len(self.res)):
-            print("Result player {} : {}".format(i, calc_total_res(self.res[i])))
+        #print results
+        # print("Final Results:")
+        # results = calc_total_res(self.res)
+        # for i in range(len(results)):
+        #     print("Result player {} : {}".format(i, results[i]))
 
     def __init__(self,num_players,human_players):
         assert(num_players>0 and num_players<5)
@@ -173,9 +179,22 @@ class yahtzee:
         self.human_players = human_players
         self.gameplay()
     
-x = yahtzee(2,[False,True])
-print(x.res)
+# x = yahtzee(2,[False,False])
+# print(x.res)
 
 #TODO:
 #-improve file/class/method structure
 
+#Test runtime of 1001 games with 4 random bots
+# get the start time
+# st = time.process_time()
+# x = [calc_total_res(yahtzee(4,[False,False,False,False]).res)]
+# for i in range(1000):
+#     x = np.append(x,[calc_total_res(yahtzee(4,[False,False,False,False]).res)],axis=0)
+# # get the end time
+# et = time.process_time()
+# # get execution time
+# res = et - st
+# print('CPU Execution time:', res, 'seconds')
+# print(np.average(x,axis=0))
+#execution time ~3s avg point: 35-50 mostly ~43p 

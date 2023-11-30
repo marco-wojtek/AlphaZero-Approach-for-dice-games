@@ -1,5 +1,6 @@
 import numpy as np
 from numpy import random
+import time
 import math
 
 colour_dict = { 0 : "White ",
@@ -140,6 +141,7 @@ class quixx:
                 if self.sheets[curr_player].enter_throw(random.randint(1,5),white_dice_val,self.closed_rows) != -1 and curr_player==current_player:
                     r=True
 
+
             #one roataion around all players
             curr_player = (curr_player+1)%self.num_players
             if curr_player == current_player:
@@ -150,7 +152,8 @@ class quixx:
         #Bot first randomly decides to enter the white dice or not
         #after that randomly iterate through the choices and test if they can be entered
         #if in both phases no value was marked select error row
-        print("Player {} (Bot) turn".format(current_player))
+        
+        #print("Player {} (Bot) turn".format(current_player))
 
         self.throw_dice()
 
@@ -170,8 +173,9 @@ class quixx:
         if not entered_throw:
             self.sheets[current_player].enter_throw(5,0,self.closed_rows)
             
-        print("Player {} (Bot) sheet after the turn".format(current_player))
-        self.sheets[current_player].print_sheet()
+        #print("Player {} (Bot) sheet after the turn".format(current_player))
+        
+        #self.sheets[current_player].print_sheet()
         return 0
     
     #human player turn
@@ -233,9 +237,9 @@ class quixx:
             for i in range(1,5):
                 s.sheet[i][s.sheet[i]>1] = 0
             
-        
-        for i in range(self.num_players):
-            print("Player {} (is Bot = {} )has {} points: ".format(i,not self.human_players[i],self.calc_result()[i]))
+        #print results
+        # for i in range(self.num_players):
+        #     print("Player {} (is Bot = {} )has {} points: ".format(i,not self.human_players[i],self.calc_result()[i]))
 
     def __init__(self,num_players,human_players):
         assert num_players in [2,3,4] and num_players == len(human_players)
@@ -292,4 +296,35 @@ class quixx:
 #q = quixx(2,[True,False])
 
 #test bot game
-q = quixx(2,[False,False])
+#q = quixx(2,[False,False])
+# a = np.array([[2,2],
+#               [0,4],
+#               [0,3],
+#               [4,1],
+#               [0,0]])
+# copy = 
+# print(np.unravel_index(np.argmin(np.ma.masked_equal(a,0)), a.shape))
+# a = 3-np.ma.masked_equal(a,0)
+# a[:2]*=-1
+# print(a)
+# print(np.unravel_index(np.argmin(a), a.shape))
+
+#greedy bot concept
+# to be greedy a bot should always use atleast one dice option per turn; two if both are good options
+#idea: for the white dice choose only a row if the progress leaves max 1 or 2 numbers out
+# afterwards always choose best dice comp of respective row
+
+#Test runtime of 1001 games with 4 random bots
+# # get the start time
+# st = time.process_time()
+# x = [quixx(4,[False,False,False,False]).calc_result()]
+# for i in range(1000):
+#     x = np.append(x,[quixx(4,[False,False,False,False]).calc_result()],axis=0)
+# # get the end time
+# et = time.process_time()
+# # get execution time
+# res = et - st
+# print('CPU Execution time:', res, 'seconds')
+# print(np.average(x,axis=0))
+#execution lasts ~ 3.344s
+#average points per player are ~9p -> very close values => game is fair? 
