@@ -196,7 +196,7 @@ class quixx:
         #count unmasked values
         cnt = np.ma.count(options_masked)
         #if all values are marked no option is calculated
-        if cnt != (len(options) * len(options[0])):
+        if cnt != 0:
             for i in range(1,5):
                 #get index of last marked number
                 try:
@@ -231,9 +231,9 @@ class quixx:
         if not entered_throw:
             self.sheets[current_player].enter_throw(5,0,self.closed_rows)
             
-        print("Player {} (Bot) sheet after the turn".format(current_player))
-        
-        self.sheets[current_player].print_sheet()
+        if True in self.human_players:
+            print("Player {} (Bot) sheet after the turn".format(current_player))
+            self.sheets[current_player].print_sheet()
         return 0
     
     #human player turn
@@ -295,9 +295,12 @@ class quixx:
             for i in range(1,5):
                 s.sheet[i][s.sheet[i]>1] = 0
             
+    def print_results(self):
         #print results
         for i in range(self.num_players):
             print("Player {} (is Bot = {} )has {} points: ".format(i,not self.human_players[i],self.calc_result()[i]))
+            print("Player {} sheet".format(i))
+            self.sheets[i].print_sheet()
 
     def __init__(self,num_players,human_players):
         assert num_players in [2,3,4] and num_players == len(human_players)
@@ -351,10 +354,11 @@ class quixx:
 #q = quixx(2,[True,True])
 
 #test human/bot game
-q = quixx(2,[True,False])
+#q = quixx(2,[True,False])
 
 #test bot game
-#q = quixx(2,[False,False])
+# q = quixx(2,[False,False])
+# q.print_results()
 
 #greedy bot concept
 # to be greedy a bot should always use atleast one dice option per turn; two if both are good options
@@ -363,15 +367,31 @@ q = quixx(2,[True,False])
 
 #Test runtime of 1001 games with 4 random bots
 # # get the start time
-# st = time.process_time()
-# x = [quixx(4,[False,False,False,False]).calc_result()]
-# for i in range(1000):
-#     x = np.append(x,[quixx(4,[False,False,False,False]).calc_result()],axis=0)
-# # get the end time
-# et = time.process_time()
-# # get execution time
-# res = et - st
-# print('CPU Execution time:', res, 'seconds')
-# print(np.average(x,axis=0))
+st = time.process_time()
+x = [quixx(2,[False,False]).calc_result()]
+error_rows = np.array([])
+for i in range(10000):
+    y = quixx(2,[False,False])
+    x = np.append(x,[y.calc_result()],axis=0)
+    error_rows = np.append(error_rows,np.count_nonzero(y.closed_rows))
+# get the end time
+et = time.process_time()
+# get execution time
+res = et - st
+print('CPU Execution time:', res, 'seconds')
+print(np.max(x,axis=0))
+print(np.min(x,axis=0))
+print(np.average(x,axis=0))
+print(np.average(error_rows))
+print(np.count_nonzero(np.where(error_rows==0)))
+print(np.count_nonzero(np.where(error_rows==1)))
+print(np.count_nonzero(np.where(error_rows==2)))
+print(np.count_nonzero(np.where(error_rows==3)))
+print(np.count_nonzero(np.where(error_rows==4)))
 #execution lasts ~ 3.344s
 #average points per player are ~9p -> very close values => game is fair? 
+#improved bot:
+#execution lasts ~ 17s
+#average points per player are ~18p  
+#80% of games end with error Ending
+#1% with 2 closed rows -> reason: the greedy bot tries to mark as many numbers per round as possible thus losing points early through lack of patience

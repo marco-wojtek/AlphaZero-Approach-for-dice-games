@@ -120,13 +120,33 @@ def result_board():
 class yahtzee:
     #bot turn. Gives only information about a turn if it contains human player
     def bot_turn(self,result,bot_game=False):
+
         if not bot_game:
             print("\n Bot Turn")
-        d = dice_throw(5)       
-        for i in range(2):
-            d = rethrow(d,r.choices([True,False], k = 5))
+        d = dice_throw(5)  
+        #RANDOM BOT     
+        # for i in range(2):
+        #     d = rethrow(d,r.choices([True,False], k = 5))
+        # x = r.choice([i for i in range(len(result)) if result[i] == -1])
+        # result[x] = options[x](d)
+
+        #GREEDY BOT takes maximum reward in throw. if its zero, rethrow all dice and repeat
         x = r.choice([i for i in range(len(result)) if result[i] == -1])
-        result[x] = options[x](d)
+        for i in range(2):
+            curr_points = np.array([])
+            for opt in options:
+                curr_points = np.append(curr_points,opt(d))
+            curr_points[np.where(result!=-1)] = -1
+            maximum_points = np.argmax(curr_points)
+            if curr_points[maximum_points] != 0:
+                break
+            else:
+                d = rethrow(d,[True,True,True,True,True])
+        
+        if curr_points[maximum_points] != 0:
+            result[maximum_points] = options[maximum_points](d)
+        else:
+            result[x] = options[x](d)
 
         if not bot_game:
             print("Player entered dice throw {} in {}".format(d,option_names[x]))
@@ -187,14 +207,18 @@ class yahtzee:
 
 #Test runtime of 1001 games with 4 random bots
 # get the start time
-# st = time.process_time()
-# x = [calc_total_res(yahtzee(4,[False,False,False,False]).res)]
-# for i in range(1000):
-#     x = np.append(x,[calc_total_res(yahtzee(4,[False,False,False,False]).res)],axis=0)
-# # get the end time
-# et = time.process_time()
-# # get execution time
-# res = et - st
-# print('CPU Execution time:', res, 'seconds')
-# print(np.average(x,axis=0))
-#execution time ~3s avg point: 35-50 mostly ~43p 
+st = time.process_time()
+x = [calc_total_res(yahtzee(4,[False,False,False,False]).res)]
+for i in range(1000):
+    x = np.append(x,[calc_total_res(yahtzee(4,[False,False,False,False]).res)],axis=0)
+# get the end time
+et = time.process_time()
+# get execution time
+res = et - st
+print('CPU Execution time:', res, 'seconds')
+print(np.average(x,axis=0))
+print(np.max(x,axis=0))
+print(np.min(x,axis=0))
+#execution time ~3s avg points: 35-50 mostly ~43p 
+#Greedy Bot:
+#execution time ~10s avg points: 125p  
