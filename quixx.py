@@ -136,10 +136,36 @@ class quixx:
                 if len(vals) == 1 and curr_player==current_player:
                     r=True
             else:
+                row_r_y = np.arange(2,13)
+                row_g_b = np.arange(12,1,-1)
+                last_marked = np.zeros(4)
+                for i in range(1,5):
+                    #get index of last marked number
+                    try:
+                        index = np.where(self.sheets[current_player].sheet[i] == 1)[0][0]
+                        last_marked[i-1] = row_r_y[index] if i in [1,2] else row_g_b[index]
+                    except:
+                        # if none was marked use following values
+                        last_marked[i-1] = 1 if i in [1,2] else 13
+                    if (i in [1,2] and last_marked[i-1] > white_dice_val) or (i in [3,4] and last_marked[i-1] < white_dice_val):
+                        last_marked[i-1] = np.inf
+                    elif (i in [1,2] and last_marked[i-1] < white_dice_val):
+                        last_marked[i-1] = white_dice_val - last_marked[i-1]
+                    elif (i in [3,4] and last_marked[i-1] > white_dice_val):
+                        last_marked[i-1] -= white_dice_val
+                best_rows = np.argsort(last_marked)
+                
+                for i in range(len(last_marked)):
+                    if self.sheets[curr_player].enter_throw(best_rows[i],white_dice_val,self.closed_rows) != -1:
+                        r=True
+                        break
+                
+                
+                
                 #bot_player random          
                 # selects a random row to enter the white dice value; if not successful due to invalid option or other. white dice are ignored    
-                if self.sheets[curr_player].enter_throw(random.randint(1,5),white_dice_val,self.closed_rows) != -1 and curr_player==current_player:
-                    r=True
+                # if self.sheets[curr_player].enter_throw(random.randint(1,5),white_dice_val,self.closed_rows) != -1 and curr_player==current_player:
+                #     r=True
 
 
             #one roataion around all players
@@ -160,22 +186,54 @@ class quixx:
         entered_throw = self.white_dice_rotation(current_player)
 
         options = self.calc_options(current_player)
-        opt = np.arange(1,5)
+        
+        #GREEDY-LIKE BOT: tries to make as much marks as possible and marks in the row where the new value has the smallest distance to the last marked
+        #maske all values which are zero or white dice
+        options_masked = np.ma.masked_equal(np.ma.masked_array(options,mask=[1,1,0,0,0,0,0,0,0,0]),0)
+        row_r_y = np.arange(2,13)
+        row_g_b = np.arange(12,1,-1)
+        last_marked = np.zeros(4)
+        #count unmasked values
+        cnt = np.ma.count(options_masked)
+        #if all values are marked no option is calculated
+        if cnt != (len(options) * len(options[0])):
+            for i in range(1,5):
+                #get index of last marked number
+                try:
+                    index = np.where(self.sheets[current_player].sheet[i] == 1)[0][0]
+                    last_marked[i-1] = row_r_y[index] if i in [1,2] else row_g_b[index]
+                except:
+                    # if none was marked use following values
+                    last_marked[i-1] = 1 if i in [1,2] else 13
+            #calculate the distances between options and last marked
+            for i in range(1,len(options_masked)):
+                options_masked[i] = last_marked[i-1] - options_masked[i]
+            options_masked[1:3] = -options_masked[1:3]
 
-        random.shuffle(opt) #shuffled vals
+            #get best option and enter throw
+            best_option = np.dstack(np.unravel_index(np.argmin(np.ravel(options_masked)),options_masked.shape))[0][0]
+            row = best_option[0]
+            number = options[row,best_option[1]]
+            self.sheets[current_player].enter_throw(row,number,self.closed_rows)
+            entered_throw = True
 
-        for i in range(len(opt)):
-            val = opt[i]
+        #RANDOM BOT
+        #opt = np.arange(1,5)
+        # random.shuffle(opt) #shuffled vals
+        # for i in range(len(opt)):
+        #     val = opt[i]
 
-            if options[val,0] != 0 and (self.sheets[current_player].enter_throw(val,options[val,0],self.closed_rows) != -1 or self.sheets[current_player].enter_throw(val,options[val,1],self.closed_rows) != -1):
-                entered_throw = True 
-                break
+        #     if options[val,0] != 0 and (self.sheets[current_player].enter_throw(val,options[val,0],self.closed_rows) != -1 or self.sheets[current_player].enter_throw(val,options[val,1],self.closed_rows) != -1):
+        #         entered_throw = True 
+        #         break
+
+
         if not entered_throw:
             self.sheets[current_player].enter_throw(5,0,self.closed_rows)
             
-        #print("Player {} (Bot) sheet after the turn".format(current_player))
+        print("Player {} (Bot) sheet after the turn".format(current_player))
         
-        #self.sheets[current_player].print_sheet()
+        self.sheets[current_player].print_sheet()
         return 0
     
     #human player turn
@@ -238,8 +296,8 @@ class quixx:
                 s.sheet[i][s.sheet[i]>1] = 0
             
         #print results
-        # for i in range(self.num_players):
-        #     print("Player {} (is Bot = {} )has {} points: ".format(i,not self.human_players[i],self.calc_result()[i]))
+        for i in range(self.num_players):
+            print("Player {} (is Bot = {} )has {} points: ".format(i,not self.human_players[i],self.calc_result()[i]))
 
     def __init__(self,num_players,human_players):
         assert num_players in [2,3,4] and num_players == len(human_players)
@@ -293,21 +351,10 @@ class quixx:
 #q = quixx(2,[True,True])
 
 #test human/bot game
-#q = quixx(2,[True,False])
+q = quixx(2,[True,False])
 
 #test bot game
 #q = quixx(2,[False,False])
-# a = np.array([[2,2],
-#               [0,4],
-#               [0,3],
-#               [4,1],
-#               [0,0]])
-# copy = 
-# print(np.unravel_index(np.argmin(np.ma.masked_equal(a,0)), a.shape))
-# a = 3-np.ma.masked_equal(a,0)
-# a[:2]*=-1
-# print(a)
-# print(np.unravel_index(np.argmin(a), a.shape))
 
 #greedy bot concept
 # to be greedy a bot should always use atleast one dice option per turn; two if both are good options
