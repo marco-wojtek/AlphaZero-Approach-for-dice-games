@@ -59,13 +59,14 @@ def full_house(dice):
 def straight(dice):
     sorted_dice = np.unique(dice)
     length = len(sorted_dice)
-
-    if len(sorted_dice) < 4:
+    #if sorted dices are only 3 or less distinct values no straight is possible
+    if length < 4:
         return [False,False]
+    cnt_longest_seq = 1
     for n in range(1,length):
-        if sorted_dice[n] != sorted_dice[n-1]+1:
-            return [False,False]
-    return [True,False] if length == 4 else [True,True] #length can only be 4 or 5
+        if sorted_dice[n] == sorted_dice[n-1]+1:
+            cnt_longest_seq += 1
+    return [True,False] if cnt_longest_seq == 4 else [True,True] #length can only be 4 or 5
 
 #all points can be set/adjusted here
 count_eyes = lambda x, i: np.count_nonzero(x==i)*i
@@ -131,7 +132,6 @@ class yahtzee:
         # result[x] = options[x](d)
 
         #GREEDY BOT takes maximum reward in throw. if its zero, rethrow all dice and repeat
-        x = r.choice([i for i in range(len(result)) if result[i] == -1])
         for i in range(2):
             curr_points = np.array([])
             for opt in options:
@@ -142,14 +142,15 @@ class yahtzee:
                 break
             else:
                 d = rethrow(d,[True,True,True,True,True])
-        
+
         if curr_points[maximum_points] != 0:
             result[maximum_points] = options[maximum_points](d)
         else:
-            result[x] = options[x](d)
+            maximum_points = r.choice([i for i in range(len(result)) if result[i] == -1])
+            result[maximum_points] = options[maximum_points](d)
 
         if not bot_game:
-            print("Player entered dice throw {} in {}".format(d,option_names[x]))
+            print("Player entered dice throw {} in {}".format(d,option_names[maximum_points]))
         return 0
     
     #Interactive turn for humane player with Texts and inputs
@@ -199,7 +200,7 @@ class yahtzee:
         self.human_players = human_players
         self.gameplay()
     
-# x = yahtzee(2,[False,False])
+# x = yahtzee(2,[True,False])
 # print(x.res)
 
 #TODO:
@@ -221,4 +222,4 @@ print(np.max(x,axis=0))
 print(np.min(x,axis=0))
 #execution time ~3s avg points: 35-50 mostly ~43p 
 #Greedy Bot:
-#execution time ~10s avg points: 125p  
+#execution time ~10s avg points: 153p  
