@@ -119,19 +119,17 @@ def result_board():
     return np.array([-1 for i in range(13)])
 
 class yahtzee:
-    #bot turn. Gives only information about a turn if it contains human player
-    def bot_turn(self,result,bot_game=False):
-
-        if not bot_game:
-            print("\n Bot Turn")
-        d = dice_throw(5)  
+    #random bot action. returns Index of chosen option
+    def random_bot(self,result,d):
         #RANDOM BOT     
-        # for i in range(2):
-        #     d = rethrow(d,r.choices([True,False], k = 5))
-        # x = r.choice([i for i in range(len(result)) if result[i] == -1])
-        # result[x] = options[x](d)
-
-        #GREEDY BOT takes maximum reward in throw. if its zero, rethrow all dice and repeat
+        for i in range(2):
+            d = rethrow(d,r.choices([True,False], k = 5))
+        x = r.choice([i for i in range(len(result)) if result[i] == -1])
+        result[x] = options[x](d)
+        return x
+    
+    #greedy bot action. returns Index of chosen option
+    def greedy_bot(self,result,d):
         for i in range(2):
             curr_points = np.array([])
             for opt in options:
@@ -145,12 +143,25 @@ class yahtzee:
 
         if curr_points[maximum_points] != 0:
             result[maximum_points] = options[maximum_points](d)
-        else:
+        else:#if 0 point have to be entered, select a random choice
             maximum_points = r.choice([i for i in range(len(result)) if result[i] == -1])
             result[maximum_points] = options[maximum_points](d)
+        return maximum_points
 
-        if not bot_game:
-            print("Player entered dice throw {} in {}".format(d,option_names[maximum_points]))
+    #bot turn. Gives only information about a turn if it contains human player
+    def bot_turn(self,result,botID):
+        if not self.isBotGame:
+            print("\n Bot Turn")
+        d = dice_throw(5)
+        if botID == 1:
+            x = self.random_bot(result,d)
+        elif botID == 2:
+            x = self.greedy_bot(result,d)
+        else:
+            raise Exception("Invalid BotID!")
+        
+        if not self.isBotGame:
+            print("Player entered dice throw {} in {}".format(d,option_names[x]))
         return 0
     
     #Interactive turn for humane player with Texts and inputs
@@ -182,44 +193,54 @@ class yahtzee:
     def gameplay(self):
         current_player = 0
         while np.any([-1 in self.res[i] for i in range(len(self.res))]):
-            if self.human_players[current_player]:
+            if self.playerIDs[current_player] == 0:
                 self.human_turn(current_player,self.res[current_player])
             else:
-                self.bot_turn(self.res[current_player],True not in self.human_players)
+                self.bot_turn(self.res[current_player],self.playerIDs[current_player])
             current_player = (current_player+1)%len(self.res)
-        
+
+    def print_results(self):
         #print results
-        # print("Final Results:")
-        # results = calc_total_res(self.res)
-        # for i in range(len(results)):
-        #     print("Result player {} : {}".format(i, results[i]))
+        print("Final Results:")
+        results = calc_total_res(self.res)
+        for i in range(len(results)):
+            print("Result player {} : {}".format(i, results[i]))
 
-    def __init__(self,num_players,human_players):
-        assert(num_players>0 and num_players<5)
+    #human players is a list of playerIDs [x,x,x,x]
+    #0=human; 1=random Bot; 2=greedy Bot
+    def __init__(self,num_players,playerIDs):
+        assert(num_players>0 and num_players<5) and all(playerIDs[x] in np.arange(3) for x in range(num_players)) and len(playerIDs)==num_players
         self.res = [result_board() for i in range(num_players)]
-        self.human_players = human_players
+        self.playerIDs = playerIDs
+        self.isBotGame = 0 not in self.playerIDs
         self.gameplay()
-    
-# x = yahtzee(2,[True,False])
-# print(x.res)
 
-#TODO:
-#-improve file/class/method structure
+#Test runtime of n games with x bots
+#get the start time
+# st = time.process_time()
+# x = [calc_total_res(yahtzee(2,[1,2]).res)]
+# for i in range(9999):
+#     x = np.append(x,calc_total_res(yahtzee(2,[1,2]).res))
+# # get the end time
+# et = time.process_time()
+# # get execution time
+# res = et - st
+# print('CPU Execution time:', res, 'seconds')
+# print(np.average(x,axis=0))
+# print(np.max(x,axis=0))
+# print(np.min(x,axis=0))
 
-#Test runtime of 1001 games with 4 random bots
-# get the start time
-st = time.process_time()
-x = [calc_total_res(yahtzee(4,[False,False,False,False]).res)]
-for i in range(1000):
-    x = np.append(x,[calc_total_res(yahtzee(4,[False,False,False,False]).res)],axis=0)
-# get the end time
-et = time.process_time()
-# get execution time
-res = et - st
-print('CPU Execution time:', res, 'seconds')
-print(np.average(x,axis=0))
-print(np.max(x,axis=0))
-print(np.min(x,axis=0))
-#execution time ~3s avg points: 35-50 mostly ~43p 
-#Greedy Bot:
-#execution time ~10s avg points: 153p  
+#Test winrate of each bot in 10k games
+#get the start time
+# st = time.process_time()
+# x = [np.argmax(calc_total_res(yahtzee(2,[1,2]).res))]
+# for i in range(9999):
+#     x = np.append(x,np.argmax(calc_total_res(yahtzee(2,[1,2]).res)))
+# # get the end time
+# et = time.process_time()
+# # get execution time
+# res = et - st
+# print('CPU Execution time:', res, 'seconds')
+# cnt = np.count_nonzero(x)
+# print("Total Games: {}, Wins random Bot: {}, Wins Greedy Bot: {}".format(len(x),len(x)-cnt,cnt))
+# print("Win rate random Bot: {}%, Win rate Greedy Bot: {}%".format(100*((len(x)-cnt)/len(x)),100*(cnt/len(x))))

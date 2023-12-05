@@ -123,7 +123,7 @@ class quixx:
         white_dice_val = self.dices[0].dice_val()[0] + self.dices[1].dice_val()[0]
         while True:
             
-            if self.human_players[curr_player]:               
+            if self.playerIDs[curr_player] == 0:               
                 #human player
                 print("Player {} to choose!".format(curr_player))
                 vals = [int(i) for i in input("Select Row to enter Value {} or enter nothing: ".format(white_dice_val)).split() if i.isdigit()]
@@ -134,8 +134,13 @@ class quixx:
                     print("Invalid Option! Please try again!")
                     vals = [int(i) for i in input("Select Row to enter Value {} or enter nothing: ".format(white_dice_val)).split() if i.isdigit()]
                 if len(vals) == 1 and curr_player==current_player:
+                    r=True                    
+            elif self.playerIDs[curr_player] ==1:
+                #bot_player random          
+                # selects a random row to enter the white dice value; if not successful due to invalid option or other. white dice are ignored    
+                if self.sheets[curr_player].enter_throw(random.randint(1,5),white_dice_val,self.closed_rows) != -1 and curr_player==current_player:
                     r=True
-            else:
+            elif self.playerIDs[curr_player] in [2,3]:
                 row_r_y = np.arange(2,13)
                 row_g_b = np.arange(12,1,-1)
                 last_marked = np.zeros(4)
@@ -156,37 +161,31 @@ class quixx:
                 best_rows = np.argsort(last_marked)
                 
                 for i in range(len(last_marked)):
-                    if self.sheets[curr_player].enter_throw(best_rows[i],white_dice_val,self.closed_rows) != -1:
+                    #limiter for Greedy bot; if the white dice would leave out more than 3 numbers the white dice should be ignored
+                    if self.playerIDs[curr_player] == 3 and last_marked[best_rows[0]] > 3:
+                        break
+                    if self.sheets[curr_player].enter_throw(best_rows[i],white_dice_val,self.closed_rows) != -1 and curr_player==current_player:
                         r=True
                         break
                 
-                
-                
-                #bot_player random          
-                # selects a random row to enter the white dice value; if not successful due to invalid option or other. white dice are ignored    
-                # if self.sheets[curr_player].enter_throw(random.randint(1,5),white_dice_val,self.closed_rows) != -1 and curr_player==current_player:
-                #     r=True
-
-
             #one roataion around all players
             curr_player = (curr_player+1)%self.num_players
             if curr_player == current_player:
                 break
         return r
     
-    def bot_turn(self,current_player):
-        #Bot first randomly decides to enter the white dice or not
-        #after that randomly iterate through the choices and test if they can be entered
-        #if in both phases no value was marked select error row
-        
-        #print("Player {} (Bot) turn".format(current_player))
+    def random_bot(self,current_player,options):
+        #RANDOM BOT
+        opt = np.arange(1,5)
+        random.shuffle(opt) #shuffled vals
+        for i in range(len(opt)):
+            val = opt[i]
 
-        self.throw_dice()
-
-        entered_throw = self.white_dice_rotation(current_player)
-
-        options = self.calc_options(current_player)
-        
+            if options[val,0] != 0 and (self.sheets[current_player].enter_throw(val,options[val,0],self.closed_rows) != -1 or self.sheets[current_player].enter_throw(val,options[val,1],self.closed_rows) != -1):
+                return True
+        return False
+    
+    def greedy_bot(self,current_player,options):
         #GREEDY-LIKE BOT: tries to make as much marks as possible and marks in the row where the new value has the smallest distance to the last marked
         #maske all values which are zero or white dice
         options_masked = np.ma.masked_equal(np.ma.masked_array(options,mask=[1,1,0,0,0,0,0,0,0,0]),0)
@@ -195,7 +194,7 @@ class quixx:
         last_marked = np.zeros(4)
         #count unmasked values
         cnt = np.ma.count(options_masked)
-        #if all values are marked no option is calculated
+        #if all values are marked no option is calculated thus no option can be selected
         if cnt != 0:
             for i in range(1,5):
                 #get index of last marked number
@@ -215,23 +214,33 @@ class quixx:
             row = best_option[0]
             number = options[row,best_option[1]]
             self.sheets[current_player].enter_throw(row,number,self.closed_rows)
-            entered_throw = True
+            return True
+        return False
 
-        #RANDOM BOT
-        #opt = np.arange(1,5)
-        # random.shuffle(opt) #shuffled vals
-        # for i in range(len(opt)):
-        #     val = opt[i]
+    def bot_turn(self,current_player):
+        #Bot first randomly decides to enter the white dice or not
+        #after that randomly iterate through the choices and test if they can be entered
+        #if in both phases no value was marked select error row
+        
+        #print("Player {} (Bot) turn".format(current_player))
 
-        #     if options[val,0] != 0 and (self.sheets[current_player].enter_throw(val,options[val,0],self.closed_rows) != -1 or self.sheets[current_player].enter_throw(val,options[val,1],self.closed_rows) != -1):
-        #         entered_throw = True 
-        #         break
+        self.throw_dice()
 
+        entered_throw = self.white_dice_rotation(current_player)
 
+        options = self.calc_options(current_player)
+        
+        if self.playerIDs[current_player] == 1:
+            entered_throw = self.random_bot(current_player,options) or entered_throw
+        elif self.playerIDs[current_player] in [2,3]:
+            entered_throw = self.greedy_bot(current_player,options) or entered_throw
+        else:
+            raise Exception("Invalid BotID!")
+        
         if not entered_throw:
             self.sheets[current_player].enter_throw(5,0,self.closed_rows)
             
-        if True in self.human_players:
+        if not self.isBotGame:
             print("Player {} (Bot) sheet after the turn".format(current_player))
             self.sheets[current_player].print_sheet()
         return 0
@@ -281,7 +290,7 @@ class quixx:
         current_player = 0
         finished = False 
         while not finished:
-            if self.human_players[current_player]:
+            if self.playerIDs[current_player]==0:
                 self.player_turn(current_player)
             else:
                 self.bot_turn(current_player)
@@ -298,80 +307,29 @@ class quixx:
     def print_results(self):
         #print results
         for i in range(self.num_players):
-            print("Player {} (is Bot = {} )has {} points: ".format(i,not self.human_players[i],self.calc_result()[i]))
+            print("Player {} (is Bot = {} )has {} points: ".format(i,self.playerIDs[i] in [2,3,4],self.calc_result()[i]))
             print("Player {} sheet".format(i))
             self.sheets[i].print_sheet()
 
-    def __init__(self,num_players,human_players):
-        assert num_players in [2,3,4] and num_players == len(human_players)
+    def __init__(self,num_players,playerIDs):
+        assert num_players in [2,3,4] and num_players == len(playerIDs) and all(playerIDs[x] in np.arange(4) for x in range(num_players))
         self.dices = [dice(0),dice(0),dice(1),dice(2),dice(3),dice(4)]
         self.sheets = [player_sheet() for i in range(num_players)]
-        self.human_players = human_players
+        self.playerIDs = playerIDs
+        self.isBotGame = 0 not in self.playerIDs
         self.closed_rows = [False,False,False,False] # the state of the rows has to be given in each attempt to enter results
         self.num_players = num_players
         self.gameplay()
 
-# Test for throw_dice() in quixx class
-# test = quixx(2,1)
-# for d in test.dices:
-#     a,b = d.dice_val()
-#     print(a,colour_dict[b])
-# print("-----------------")
-# test.throw_dice()
-# for d in test.dices:
-#     a,b = d.dice_val()
-#     print(a,colour_dict[b])
-
-# Test for enter_throw()
-# x = player_sheet()
-# print(x.sheet)
-# a = x.enter_throw(1,2,[False,False,False,False])
-# a = x.enter_throw(1,3,[False,False,False,False])
-# a = x.enter_throw(1,4,[False,False,False,False])
-# a = x.enter_throw(1,6,[False,False,False,False])
-# # a = x.enter_throw(1,8,[False,False,False,False]) #uncomment if test includes successful closing
-# print(a)
-# print(x.sheet)
-# a = x.enter_throw(1,12,[False,False,False,False])
-# print(a)
-# print(x.sheet)
-
-#Test for player input for coloured dice option
-# s = player_sheet()
-# vals = [int(i) for i in input("Select Option as Row Number: ").split() if i.isdigit()]
-# print(vals)
-# while len(vals) != 2 or s.enter_throw(vals[0],vals[1],[False,False,False,False]) == -1:
-#         print("Invalid Option! Please try again!")
-#         vals = [int(i) for i in input("Select Option as Row Number: ").split() if i.isdigit()]
-# print(s.sheet)
-
-# TODO: 
-# - handling of point calculation
-# - white dice turn for bot player 
-# - bot turn
-
-#test human game
-#q = quixx(2,[True,True])
-
-#test human/bot game
-#q = quixx(2,[True,False])
-
-#test bot game
-# q = quixx(2,[False,False])
-# q.print_results()
-
-#greedy bot concept
-# to be greedy a bot should always use atleast one dice option per turn; two if both are good options
-#idea: for the white dice choose only a row if the progress leaves max 1 or 2 numbers out
-# afterwards always choose best dice comp of respective row
-
-#Test runtime of 1001 games with 4 random bots
-# # get the start time
+#Test runtime of n games with x bots
+# get the start time
 st = time.process_time()
-x = [quixx(2,[False,False]).calc_result()]
+y = quixx(4,[1,1,1,1])
+x = [y.calc_result()]
 error_rows = np.array([])
+error_rows = np.append(error_rows,np.count_nonzero(y.closed_rows))
 for i in range(10000):
-    y = quixx(2,[False,False])
+    y = quixx(4,[1,1,1,1])
     x = np.append(x,[y.calc_result()],axis=0)
     error_rows = np.append(error_rows,np.count_nonzero(y.closed_rows))
 # get the end time
@@ -388,10 +346,4 @@ print(np.count_nonzero(np.where(error_rows==1)))
 print(np.count_nonzero(np.where(error_rows==2)))
 print(np.count_nonzero(np.where(error_rows==3)))
 print(np.count_nonzero(np.where(error_rows==4)))
-#execution lasts ~ 3.344s
-#average points per player are ~9p -> very close values => game is fair? 
-#improved bot:
-#execution lasts ~ 17s
-#average points per player are ~18p  
-#80% of games end with error Ending
-#1% with 2 closed rows -> reason: the greedy bot tries to mark as many numbers per round as possible thus losing points early through lack of patience
+
