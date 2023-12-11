@@ -7,6 +7,7 @@ Since the MCTS with chance nodes would converged towards Expectimax this idea mu
 
 To reduce the branching factor the methods of pruning or open loop have to be adapted for the changed algorithms.
 
-Yahtzee: large branching but straight forward actions
-Quixx: in comparison low branching but complex turn actions (white dice turns)
+\
+Yahtzee: large branching but straight forward actions \
+Quixx: in comparison low branching but complex turn actions (white dice turns) \
 Machi Koro: TBD
