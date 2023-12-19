@@ -323,27 +323,92 @@ class quixx:
 
 #Test runtime of n games with x bots
 # get the start time
-st = time.process_time()
-y = quixx(4,[1,1,1,1])
-x = [y.calc_result()]
-error_rows = np.array([])
-error_rows = np.append(error_rows,np.count_nonzero(y.closed_rows))
-for i in range(10000):
-    y = quixx(4,[1,1,1,1])
-    x = np.append(x,[y.calc_result()],axis=0)
-    error_rows = np.append(error_rows,np.count_nonzero(y.closed_rows))
-# get the end time
-et = time.process_time()
-# get execution time
-res = et - st
-print('CPU Execution time:', res, 'seconds')
-print(np.max(x,axis=0))
-print(np.min(x,axis=0))
-print(np.average(x,axis=0))
-print(np.average(error_rows))
-print(np.count_nonzero(np.where(error_rows==0)))
-print(np.count_nonzero(np.where(error_rows==1)))
-print(np.count_nonzero(np.where(error_rows==2)))
-print(np.count_nonzero(np.where(error_rows==3)))
-print(np.count_nonzero(np.where(error_rows==4)))
+# st = time.process_time()
+# y = quixx(4,[3,3,3,3])
+# x = [y.calc_result()]
+# error_rows = np.array([])
+# error_rows = np.append(error_rows,np.count_nonzero(y.closed_rows))
+# for i in range(9999):
+#     y = quixx(4,[3,3,3,3])
+#     x = np.append(x,[y.calc_result()],axis=0)
+#     error_rows = np.append(error_rows,np.count_nonzero(y.closed_rows))
+# # get the end time
+# et = time.process_time()
+# # get execution time
+# res = et - st
+# print('CPU Execution time:', res, 'seconds')
+# print(np.max(x,axis=0))
+# print(np.min(x,axis=0))
+# print(np.average(x,axis=0))
+# print(np.median(x,axis=0))
+# print(np.average(error_rows))
+# print(np.count_nonzero(np.where(error_rows==0)))
+# print(np.count_nonzero(np.where(error_rows==1)))
+# print(np.count_nonzero(np.where(error_rows==2)))
+# print(np.count_nonzero(np.where(error_rows==3)))
+# print(np.count_nonzero(np.where(error_rows==4)))
 
+#Test win rates for different Bots
+# get the start time
+# st = time.process_time()
+# y = quixx(3,[2,1,3])
+# x = [np.argmax(y.calc_result())]
+# error_rows = np.array([])
+# error_rows = np.append(error_rows,np.count_nonzero(y.closed_rows))
+# for i in range(10000):
+#     y = quixx(3,[2,1,3])
+#     x = np.append(x,[np.argmax(y.calc_result())])
+#     error_rows = np.append(error_rows,np.count_nonzero(y.closed_rows))
+# # get the end time
+# et = time.process_time()
+# # get execution time
+# res = et - st
+# print('CPU Execution time:', res, 'seconds')
+# cnt_1 = (np.count_nonzero(np.where(x==0))/len(x))*100
+# cnt_2 = (np.count_nonzero(np.where(x==1))/len(x))*100
+# cnt_3 = (np.count_nonzero(np.where(x==2))/len(x))*100
+# print("After {} games the Bots have the following winrates:\n Random Bot: {}% \n Greedy Bot: {}% \n limited Greedy Bot: {}%".format(len(x),cnt_3,cnt_2,cnt_1))
+#  Random Bot: 14.2985701429857%
+#  Greedy Bot: 42.435756424357564%
+#  limited Greedy Bot: 43.255674432556745%
+#TODO: Test in 1v1s and 1v3s, ...
+
+def get_initial_state(self,player_num):
+    assert player_num in [2,3,4]
+    arr = np.array([
+        np.arange(2,13),
+        np.arange(2,13),
+        np.arange(12,1,-1),
+        np.arange(12,1,-1)
+        ])
+    if player_num == 2:
+        return np.array([
+            np.zeros(6), 
+            arr.copy(),
+            arr.copy()],dtype=object)
+    elif player_num == 3:
+        return np.array([
+            np.zeros(6), 
+            arr.copy(),
+            arr.copy(),
+            arr.copy()],dtype=object)
+    else:
+        return np.array([
+            np.zeros(6), 
+            arr.copy(),
+            arr.copy(),
+            arr.copy(),
+            arr.copy()],dtype=object)
+
+print(get_initial_state(0,4))
+# def get_valid_moves(self,state,white_roatation=False):
+#     if white_roatation:
+#         return state[0][0]+state[0][1]
+#     else:
+#         valid = np.zeros((4,2))    
+#         valid[:,0] += state[0][0] 
+#         valid[:,1] += state[0][1]
+#         valid[0,:] += state[0][2]
+#         valid[1,:] += state[0][3]
+#         valid[2,:] += state[0][4]
+#         valid[3,:] += state[0][5]

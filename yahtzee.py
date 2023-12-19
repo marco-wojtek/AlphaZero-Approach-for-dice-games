@@ -2,9 +2,11 @@ import numpy as np
 from numpy import random
 import random as r
 import time
+import itertools as iter
+import copy
 
 #returns a numpy array with num_dice values between 1 and 6 both included
-def dice_throw(num_dice=1):
+def dice_throw(num_dice=5):
     assert(type(num_dice) == int)
     return random.randint(1,7,size=(num_dice))
 
@@ -87,7 +89,9 @@ def calc_total_res(result):
     
     return res
 
-option_names = np.array(["Ones",
+option_names = np.array([
+                "Rethrow",
+                "Ones",
                 "Twos",
                 "Threes",
                 "Fours",
@@ -101,19 +105,20 @@ option_names = np.array(["Ones",
                 "Yahtzee (50p)",
                 "Chance (all Eyes)"])
 
-options = np.array([lambda x: count_eyes(x,i=1),
-           lambda x: count_eyes(x,i=2),
-           lambda x: count_eyes(x,i=3),
-           lambda x: count_eyes(x,i=4),
-           lambda x: count_eyes(x,i=5),
-           lambda x: count_eyes(x,i=6),
-           three_same,
-           four_same,
-           fullHouse,
-           small_straight,
-           large_straight,
-           yahtzee,
-           chance])
+options = np.array([lambda x: count_eyes(x,i=1),#0
+           lambda x: count_eyes(x,i=2),#1
+           lambda x: count_eyes(x,i=3),#2
+           lambda x: count_eyes(x,i=4),#3
+           lambda x: count_eyes(x,i=5),#4
+           lambda x: count_eyes(x,i=6),#5
+           three_same,#6
+           four_same,#7
+           fullHouse,#8
+           small_straight,#9
+           large_straight,#10
+           yahtzee,#11
+           chance#12
+           ])
 #a list for a players board
 def result_board():
     return np.array([-1 for i in range(13)])
@@ -218,9 +223,9 @@ class yahtzee:
 #Test runtime of n games with x bots
 #get the start time
 # st = time.process_time()
-# x = [calc_total_res(yahtzee(2,[1,2]).res)]
+# x = [calc_total_res(yahtzee(4,[1,1,1,1]).res)]
 # for i in range(9999):
-#     x = np.append(x,calc_total_res(yahtzee(2,[1,2]).res))
+#     x = np.append(x,[calc_total_res(yahtzee(4,[1,1,1,1]).res)],axis=0)
 # # get the end time
 # et = time.process_time()
 # # get execution time
@@ -229,6 +234,7 @@ class yahtzee:
 # print(np.average(x,axis=0))
 # print(np.max(x,axis=0))
 # print(np.min(x,axis=0))
+# print(np.median(x,axis=0))
 
 #Test winrate of each bot in 10k games
 #get the start time
@@ -244,3 +250,33 @@ class yahtzee:
 # cnt = np.count_nonzero(x)
 # print("Total Games: {}, Wins random Bot: {}, Wins Greedy Bot: {}".format(len(x),len(x)-cnt,cnt))
 # print("Win rate random Bot: {}%, Win rate Greedy Bot: {}%".format(100*((len(x)-cnt)/len(x)),100*(cnt/len(x))))
+
+
+# r contains all possible permutations for 5 dice
+# use to calculate all chances for the markable events (yahtzee,...) 
+# r = list(iter.product(range(1,7),repeat=3))
+# length  = len(r)
+# print(12/length)
+# cnt = {}
+# for d in r:
+#     val = options[11](np.asarray(d))
+#     if val not in cnt:
+#         cnt[val] = 0
+#     cnt[val] += 1
+# print(cnt)
+# prob = 0
+# for i in cnt:
+#     if i == 0:
+#         cnt[i] = cnt[i]/length
+#     else:
+#         prob += cnt[i]
+# print(cnt[0])
+# print(prob/length)
+
+# cnt = {}
+# for d in r:
+#     val = np.sum(np.asarray(d))
+#     if val not in cnt:
+#         cnt[val] = 0
+#     cnt[val] += 1
+# print(cnt)
