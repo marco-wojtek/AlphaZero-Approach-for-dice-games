@@ -11,3 +11,6 @@ To reduce the branching factor the methods of pruning or open loop have to be ad
 Yahtzee: large branching but straight forward actions (Maybe because of the large branching factor a simplified game is used e.g. less dice or instead of D6 use D4, possibly create a single player AI which only tries to maximize his own result)\
 Quixx: in comparison low branching but complex turn actions (white dice turns) \
 Machi Koro: Options per turn are mostly very low since many limitations are created with dice and bank value. Assuming an unlimited amount of coins for the current player there are max. 19 cards to buy + 1 choice of buying none. Tree depth can be reduced by adding a rule that players must buy something in a number of turns or the game end. E.g. assuming 4 players don't buy anything for two whole roatations the game end with every player as a loser. (Everyone loses so this state is not desiable)
+
+\
+Git project for AlphaZero for TicTacToe and Connect4 as inspiration: https://github.com/foersterrobert/AlphaZeroFromScratch
