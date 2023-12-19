@@ -41,7 +41,7 @@ def straight(dice):
     for n in range(1,length):
         if sorted_dice[n] == sorted_dice[n-1]+1:
             cnt_longest_seq += 1
-    return [True,False] if cnt_longest_seq == 4 else [True,True] #length can only be 4 or 5
+    return [True,False] if cnt_longest_seq == 4 else [True,True] if cnt_longest_seq == 5 else [False,False] #length can only be 4 or 5
 
 #all points can be set/adjusted here
 count_eyes = lambda x, i: np.count_nonzero(x==i)*i
@@ -172,9 +172,57 @@ def greedy_bot_action(game,state,player,valid_actions,throw):#Greedy bot which s
                 choice,points = option[opt][0],p[player]   
     return choice
 
+def classic_greedy_bot(game,state,player,valid_actions,throw):#Greedy bot which simulates every throw once and chooses the best expectation -> if rethrowing brings possibly a better result the risk is taken
+    option = np.argwhere(valid_actions)[1:]
+    choice,points = -1,0
+    t = throw
+    while t<2:
+        for opt in range(len(option)):       
+            c_game = copy.deepcopy(state)
+            c_game = game.get_next_state(c_game,player,option[opt][0])
+            p = options[option[opt][0]-1](c_game[0])
+            if p>points:
+                choice,points = option[opt][0],p
+        if points == 0:
+            state = game.get_next_state(state,player,0,[1,1,1,1,1])
+            t+=1
+        else:
+            break
+    if choice == -1:
+        choice = r.choice(option)[0]
+    return choice
+
+#Random Bot simulation
+# x = np.array([[0,0,0,0]])
+# st = time.process_time()
+# for i in range(100):
+#     Yahtzee = yahtzee(4)
+#     game = Yahtzee.get_initial_state()
+#     game = Yahtzee.get_next_state(game,0,0,[1,1,1,1,1])
+#     player = 0
+#     throw = 0
+#     while not Yahtzee.get_points_and_terminated(game)[1]:
+#         v = Yahtzee.get_valid_moves(game,player,0)
+#         act = random_bot_action(Yahtzee,game,player,v)
+#         game = Yahtzee.get_next_state(game,player,act)
+#         game = Yahtzee.get_next_state(game,player,0,[1,1,1,1,1])
+#         player = (player+1)%4
+
+#     points, t = Yahtzee.get_points_and_terminated(game)
+#     x = np.append(x,[points],axis=0)
+# et = time.process_time()
+# res = et - st
+# print('CPU Execution time:', res, 'seconds')
+# x = x[1:]
+# print(np.max(x,axis=0))
+# print(np.min(x,axis=0))
+# print(np.average(x,axis=0))
+# print(np.median(x,axis=0))
+
+#Greedy Bot simulation
 x = np.array([[0,0,0,0]])
 st = time.process_time()
-for i in range(100):
+for i in range(1000):
     Yahtzee = yahtzee(4)
     game = Yahtzee.get_initial_state()
     game = Yahtzee.get_next_state(game,0,0,[1,1,1,1,1])
@@ -182,7 +230,7 @@ for i in range(100):
     throw = 0
     while not Yahtzee.get_points_and_terminated(game)[1]:
         v = Yahtzee.get_valid_moves(game,player,0)
-        act = random_bot_action(Yahtzee,game,player,v)
+        act = classic_greedy_bot(Yahtzee,game,player,v,0)
         game = Yahtzee.get_next_state(game,player,act)
         game = Yahtzee.get_next_state(game,player,0,[1,1,1,1,1])
         player = (player+1)%4

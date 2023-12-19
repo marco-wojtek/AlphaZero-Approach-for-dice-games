@@ -49,17 +49,25 @@ class machikoro:
     
     def distribution(self,state,player,dice):
         current_player = player -1 
-        #payment iteration is counterclockwise
+        #counterclockwise payment iteration
         while current_player != player:
             #action with regards to upgrades
 
             current_player = current_player-1 if current_player>0 else len(state[0])
+        #clockwise collecting iteration
+        while True:
+            #action with regards to upgrades
+            
+            current_player = (current_player+1)%len(state[0])
+            if current_player == player:
+                break
 
     def valid_actions(self,state,player,dice):
-        
+        #first check which cards are available, afterwards filter the too expensive ones
         return 0
     
-    def get_terminated(self,state):
+    #Checks wether any player has all upgrades
+    def is_terminated(self,state):
         return np.any([np.all(state[2][i]) for i in range(len(state[2]))])
 
 Machikoro = machikoro()
