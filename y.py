@@ -4,6 +4,7 @@ import random as r
 import time
 import itertools as iter
 import copy
+from tqdm import tqdm
 
 #returns a numpy array with num_dice values between 1 and 6 both included
 def dice_throw(num_dice=5):
@@ -195,7 +196,7 @@ def classic_greedy_bot(game,state,player,valid_actions,throw):#Greedy bot which 
 #Random Bot simulation
 # x = np.array([[0,0,0,0]])
 # st = time.process_time()
-# for i in range(100):
+# for i in tqdm(range(10000)):
 #     Yahtzee = yahtzee(4)
 #     game = Yahtzee.get_initial_state()
 #     game = Yahtzee.get_next_state(game,0,0,[1,1,1,1,1])
@@ -220,28 +221,28 @@ def classic_greedy_bot(game,state,player,valid_actions,throw):#Greedy bot which 
 # print(np.median(x,axis=0))
 
 #Greedy Bot simulation
-x = np.array([[0,0,0,0]])
-st = time.process_time()
-for i in range(1000):
-    Yahtzee = yahtzee(4)
-    game = Yahtzee.get_initial_state()
-    game = Yahtzee.get_next_state(game,0,0,[1,1,1,1,1])
-    player = 0
-    throw = 0
-    while not Yahtzee.get_points_and_terminated(game)[1]:
-        v = Yahtzee.get_valid_moves(game,player,0)
-        act = classic_greedy_bot(Yahtzee,game,player,v,0)
-        game = Yahtzee.get_next_state(game,player,act)
-        game = Yahtzee.get_next_state(game,player,0,[1,1,1,1,1])
-        player = (player+1)%4
+# x = np.array([[0,0,0,0]])
+# st = time.process_time()
+# for i in tqdm(range(10000)):
+#     Yahtzee = yahtzee(4)
+#     game = Yahtzee.get_initial_state()
+#     game = Yahtzee.get_next_state(game,0,0,[1,1,1,1,1])
+#     player = 0
+#     throw = 0
+#     while not Yahtzee.get_points_and_terminated(game)[1]:
+#         v = Yahtzee.get_valid_moves(game,player,0)
+#         act = classic_greedy_bot(Yahtzee,game,player,v,0)
+#         game = Yahtzee.get_next_state(game,player,act)
+#         game = Yahtzee.get_next_state(game,player,0,[1,1,1,1,1])
+#         player = (player+1)%4
 
-    points, t = Yahtzee.get_points_and_terminated(game)
-    x = np.append(x,[points],axis=0)
-et = time.process_time()
-res = et - st
-print('CPU Execution time:', res, 'seconds')
-x = x[1:]
-print(np.max(x,axis=0))
-print(np.min(x,axis=0))
-print(np.average(x,axis=0))
-print(np.median(x,axis=0))
+#     points, t = Yahtzee.get_points_and_terminated(game)
+#     x = np.append(x,[points],axis=0)
+# et = time.process_time()
+# res = et - st
+# print('CPU Execution time:', res, 'seconds')
+# x = x[1:]
+# print(np.max(x,axis=0))
+# print(np.min(x,axis=0))
+# print(np.average(x,axis=0))
+# print(np.median(x,axis=0))

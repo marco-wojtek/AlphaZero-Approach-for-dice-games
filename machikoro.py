@@ -63,7 +63,7 @@ class machikoro:
                 break
 
     def valid_actions(self,state,player,dice):
-        #first check which cards are available, afterwards filter the too expensive ones
+        #first check which cards are available, afterwards filter the too expensive ones #regard upgrade actions stealing 5 coins or swapping cards which are handled before the card option
         return 0
     
     #Checks wether any player has all upgrades

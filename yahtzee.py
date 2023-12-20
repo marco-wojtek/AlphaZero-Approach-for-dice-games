@@ -3,7 +3,7 @@ from numpy import random
 import random as r
 import time
 import itertools as iter
-import copy
+from tqdm import tqdm
 
 #returns a numpy array with num_dice values between 1 and 6 both included
 def dice_throw(num_dice=5):
@@ -68,7 +68,7 @@ def straight(dice):
     for n in range(1,length):
         if sorted_dice[n] == sorted_dice[n-1]+1:
             cnt_longest_seq += 1
-    return [True,False] if cnt_longest_seq == 4 else [True,True] #length can only be 4 or 5
+    return [True,False] if cnt_longest_seq == 4 else [True,True] if cnt_longest_seq == 5 else [False,False] #length can only be 4 or 5
 
 #all points can be set/adjusted here
 count_eyes = lambda x, i: np.count_nonzero(x==i)*i
@@ -222,19 +222,19 @@ class yahtzee:
 
 #Test runtime of n games with x bots
 #get the start time
-# st = time.process_time()
-# x = [calc_total_res(yahtzee(4,[1,1,1,1]).res)]
-# for i in range(9999):
-#     x = np.append(x,[calc_total_res(yahtzee(4,[1,1,1,1]).res)],axis=0)
-# # get the end time
-# et = time.process_time()
-# # get execution time
-# res = et - st
-# print('CPU Execution time:', res, 'seconds')
-# print(np.average(x,axis=0))
-# print(np.max(x,axis=0))
-# print(np.min(x,axis=0))
-# print(np.median(x,axis=0))
+st = time.process_time()
+x = [calc_total_res(yahtzee(4,[2,2,2,2]).res)]
+for i in tqdm(range(9999)):
+    x = np.append(x,[calc_total_res(yahtzee(4,[2,2,2,2]).res)],axis=0)
+# get the end time
+et = time.process_time()
+# get execution time
+res = et - st
+print('CPU Execution time:', res, 'seconds')
+print(np.average(x,axis=0))
+print(np.max(x,axis=0))
+print(np.min(x,axis=0))
+print(np.median(x,axis=0))
 
 #Test winrate of each bot in 10k games
 #get the start time
