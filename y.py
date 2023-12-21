@@ -6,11 +6,6 @@ import itertools as iter
 import copy
 from tqdm import tqdm
 
-#returns a numpy array with num_dice values between 1 and 6 both included
-def dice_throw(num_dice=5):
-    assert(type(num_dice) == int)
-    return random.randint(1,7,size=(num_dice))
-
 #returns the dice with changed values; to_rethow must be a list with True or False values
 def rethrow(dice, to_rethrow):
     assert(len(dice) == len(to_rethrow))
@@ -115,31 +110,6 @@ class yahtzee:
         if np.any(state[1]==-1):
             return points,False
         return points, True
-
-# Yahtzee = yahtzee(2)
-# game = Yahtzee.get_initial_state()
-# game = Yahtzee.get_next_state(game,0,0,[1,1,1,1,1])
-# print(len(game[0]))
-# player = 0
-# throw = 0
-# while not get_points_and_terminated(0,game)[1]:
-#     print("Player {} turn".format(player))
-#     print(game[0])
-#     print(np.c_[option_names[get_valid_moves(0,game,player,throw)],np.argwhere(get_valid_moves(0,game,player,throw))])
-#     action = int(input("Player's choice: "))
-#     if action == 0:
-#         dice = input("Rethrow dice as a b c d e with 1 for rethrow and 0 for not: ")
-#         dice = np.array([int(temp) for temp in dice.split() if temp.isdigit()])
-#         game = get_next_state(0,game,player,action,dice)
-#         throw += 1
-#     else:
-#         dice = np.array([1,1,1,1,1])
-#         game = get_next_state(0,game,player,action,dice)
-#         throw = 0
-#         player = (player + 1) % len(game[1])
-# print(game[1])
-# points, t = get_points_and_terminated(0,game)
-# print("Winner is Player {} with {} Points".format(np.argmax(points),np.max(points)))
 
 all_permutations = list(iter.product(range(0,2),repeat=5))
 

@@ -2,6 +2,7 @@ import numpy as np
 from numpy import random
 import time
 import math
+import itertools as iter
 
 colour_dict = { 0 : "White ",
                 1 : "Red   ",
@@ -371,7 +372,9 @@ class quixx:
 #  Random Bot: 14.2985701429857%
 #  Greedy Bot: 42.435756424357564%
 #  limited Greedy Bot: 43.255674432556745%
-#TODO: Test in 1v1s and 1v3s, ...
+
+#contains the indices for all spaces
+action_space = np.reshape(np.arange(1,45),(4,11))
 
 def get_initial_state(self,player_num):
     assert player_num in [2,3,4]
@@ -385,30 +388,73 @@ def get_initial_state(self,player_num):
         return np.array([
             np.zeros(6), 
             arr.copy(),
-            arr.copy()],dtype=object)
+            arr.copy(),
+            np.zeros(2)],dtype=object)
     elif player_num == 3:
         return np.array([
             np.zeros(6), 
             arr.copy(),
             arr.copy(),
-            arr.copy()],dtype=object)
+            arr.copy(),
+            np.zeros(3)],dtype=object)
     else:
         return np.array([
             np.zeros(6), 
             arr.copy(),
             arr.copy(),
             arr.copy(),
-            arr.copy()],dtype=object)
+            arr.copy(),
+            np.zeros(4)],dtype=object)
 
-print(get_initial_state(0,4))
-# def get_valid_moves(self,state,white_roatation=False):
-#     if white_roatation:
-#         return state[0][0]+state[0][1]
-#     else:
-#         valid = np.zeros((4,2))    
-#         valid[:,0] += state[0][0] 
-#         valid[:,1] += state[0][1]
-#         valid[0,:] += state[0][2]
-#         valid[1,:] += state[0][3]
-#         valid[2,:] += state[0][4]
-#         valid[3,:] += state[0][5]
+#action 0 means "no mark"
+#marks the number of the action and sets all values between the last mark and chosen mark to 0 
+def get_next_state(self,state,player,action):
+    if action == 0:
+        state[-1][player] +=1
+    else:    
+        row = np.argwhere(action_space==action)[0][0]
+        val = np.argwhere(action_space==action)[0][1]
+        marked_num = np.argwhere(i[player+1][row]==1)
+        last_marked = marked_num[-1][0] if len(marked_num) >0 else -1
+        state[player+1][row][val] = 1
+        state[player+1][row][last_marked+1:val] = 0 
+    return state
+
+#resturns a number of possible moves; for white dice roatation max. 5 (one is no choice); coloured dice has max. 9 (one is no choice) error count is handled out
+#the values returned are the values of the action_space with the additional option 0
+def get_valid_moves(self,state,player,white_rotation=False):
+    options = np.array([0])
+    if white_rotation:
+        dice_value = state[0][0]+state[0][1]
+        for k in range(4):
+            x = np.argwhere(state[player+1][k]== dice_value)
+            if len(x)>0:
+                options = np.append(options,action_space[k][x])
+    else:
+        for k in range(4):
+            dice_val_1 = state[0][0] + state[0][2+k]
+            dice_val_2 = state[0][1] + state[0][2+k]
+            x_1 = np.argwhere(state[player+1][k]== dice_val_1)
+            x_2 = np.argwhere(state[player+1][k]== dice_val_2)
+            if len(x_1)>0:
+                options = np.append(options,action_space[k][x_1])
+            if len(x_2)>0:
+                options = np.append(options,action_space[k][x_2])
+    return np.unique(options)
+
+#check for >=2 closed rows for each player, a row is closed if the last number in a row is marked 
+def is_terminated(self,state):
+    for j in range(1,len(state-1)):
+        if np.sum([state[j][i][-1]==1 for i in range(4)])>=2 or np.any([state[-1][k]==4 for k in range(len(state)-2)]):
+            return True
+    return False
+
+def dice():
+    return random.randint(1,7,size=(6))
+
+i = get_initial_state(0,3)
+player = 1
+i[0] = dice()
+print(i)
+print(get_valid_moves(0,i,0,True))
+
