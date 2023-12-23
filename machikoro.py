@@ -26,6 +26,9 @@ class card:
      
 class machikoro:
     
+    def __init__(self):
+        self.card_costs = np.array([1,1,1,2,2,3,6,7,8,5,3,6,3,3,2,4,10,16,22])#last 4 are upgrade costs
+
     def get_initial_state(self,num_players):
         player_bank = np.zeros(num_players) + 3
         player_cards = np.zeros((num_players,15))
@@ -38,9 +41,10 @@ class machikoro:
     def get_next_state(self,state,player,action,dice):#action is the choice if and which card is to buy #action 0 is always = "do nothing" 
         if action == -1:
             #basic action like buying a card
-            return #TODO
+            state[0][player] -= self.card_costs[action-1]
+            state[1][player][action-1] += 1 
         elif action in [16,17,18,19]:#upgrade
-            state[0][player] = state[0][player]-4 if action == 16 else state[0][player]-10 if action == 17 else state[0][player]-16 if action==18 else state[0][player]-22
+            state[0][player] -= self.card_costs[action-1]
             state[2][action-15] = 1
         else:
             #stealing/trading
@@ -110,21 +114,11 @@ class machikoro:
         #first check which cards are available, afterwards filter the too expensive ones #regard upgrade actions stealing 5 coins or swapping cards which are handled before the card option
         num_coins = state[0][player]
         available_cards = (state[3]>0)
-        available_cards[0]  = available_cards[0] and num_coins >= 1
-        available_cards[1]  = available_cards[1] and num_coins >= 1
-        available_cards[2]  = available_cards[2] and num_coins >= 1
-        available_cards[3]  = available_cards[3] and num_coins >= 2
-        available_cards[4]  = available_cards[4] and num_coins >= 2
-        available_cards[5]  = available_cards[5] and num_coins >= 3
-        available_cards[6]  = (state[1][player][6] == 0) and num_coins >= 6
-        available_cards[7]  = (state[1][player][7] == 0) and num_coins >= 7
-        available_cards[8]  = (state[1][player][8] == 0) and num_coins >= 8
-        available_cards[9]  = available_cards[9]  and num_coins >= 5
-        available_cards[10] = available_cards[10] and num_coins >= 3
-        available_cards[11] = available_cards[11] and num_coins >= 6
-        available_cards[12] = available_cards[12] and num_coins >= 3
-        available_cards[13] = available_cards[13] and num_coins >= 3
-        available_cards[14] = available_cards[14] and num_coins >= 2
+        for n in range(len(available_cards)):
+            if n not in [6,7,8]:
+                available_cards[n] =  available_cards[0] and (num_coins >= self.card_costs[n])
+            else:
+                available_cards[n] = (state[1][player][n] == 0) and (num_coins >= self.card_costs[n])
         #available_cards contains all buyable cards // all buy card actions + action 0 ~ do nothing and actions 16,17,18,19 for upgrade option
         available_cards = np.append(np.array([]),np.argwhere(np.append(np.array([True]),available_cards)))
         if num_coins >= 22:
@@ -146,7 +140,9 @@ def dice():
     return random.randint(1,7,size=(2))
 
 Machikoro = machikoro()
-
+initial = Machikoro.get_initial_state(4)
+v = Machikoro.valid_actions(initial,0)
+print(v)
 
 #late game turn iteration
 #select one or two dice
@@ -157,3 +153,5 @@ Machikoro = machikoro()
 #if special card is owned -> trade cards/steal coins
 #choose 1 or 0 of 15 cards OR 1 or 0 of big projects to buy/build
 #end turn
+
+#TODO: Add the stealing and trading actions 
