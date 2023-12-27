@@ -5,6 +5,7 @@ import time
 import math
 import itertools as iter
 from tqdm import tqdm
+import copy
 
 class quixx:
 
@@ -91,10 +92,22 @@ class quixx:
     def get_points_and_terminated(self,state):
         num_players = len(state)-2
         terminated = False
+        closed_rows = [False,False,False,False]
         for j in range(1,len(state)-1):
-            if np.sum([state[j][i][-1]==1 for i in range(4)])>=2 or np.any([state[-1][k]==4 for k in range(num_players)]):
+            arr = [state[j][i][-1]==1 for i in range(4)]
+            closed_rows = closed_rows or arr
+            if np.sum(arr)>=2 or np.any([state[-1][k]==4 for k in range(num_players)]):
                 terminated = True
         
+        #for every closed row mark all other players numbers of that row with 0
+        for j in range(1,len(state)-1):
+            for i in range(4):
+                if closed_rows[i]:
+                    marked_num = np.argwhere(state[j][i]==1)
+                    last_marked = marked_num[-1][0] if len(marked_num) >0 else 0
+                    state[j][i][last_marked:] = 0
+
+        print(state)
         points = np.zeros(num_players)
         for n in range(num_players):
             for m in range(4):
@@ -125,40 +138,42 @@ def greedy_bot(game,state,valid_moves,player):
     return valid_moves[np.argmin(distances)]
 
 Quixx = quixx()
+init = Quixx.get_initial_state(4)
+print(Quixx.get_points_and_terminated(init))
 
-x = np.array([[0,0,0,0]])
-st = time.process_time()
-for i in tqdm(range(10000)):
-    game = Quixx.get_initial_state(4)
-    num_players = len(game)-2
-    points, terminated = Quixx.get_points_and_terminated(game)
-    player = 0
-    while not terminated:
-        game[0] = dice()
-        #white_dice
-        act = greedy_bot(Quixx,game,Quixx.get_valid_moves(game,player,True),player)
-        game = Quixx.get_next_state(game,player,act)
-        play = (player+1)%num_players
-        while play != player:
-            act_r = greedy_bot(Quixx,game,Quixx.get_valid_moves(game,play,True),player)
-            game = Quixx.get_next_state(game,play,act_r)
-            play = (play+1)%num_players
-        #rest of turn
-        act_2 = greedy_bot(Quixx,game,Quixx.get_valid_moves(game,player),player)
-        #if the sum is >0 at least one combination was used
-        if act + act_2 == 0:
-            act_2 = -1
-        game = Quixx.get_next_state(game,player,act_2)
-        player = (player+1)%num_players
-        points, terminated = Quixx.get_points_and_terminated(game)
+# x = np.array([[0,0,0,0]])
+# st = time.process_time()
+# for i in tqdm(range(10000)):
+#     game = Quixx.get_initial_state(4)
+#     num_players = len(game)-2
+#     points, terminated = Quixx.get_points_and_terminated(game)
+#     player = 0
+#     while not terminated:
+#         game[0] = dice()
+#         #white_dice
+#         act = greedy_bot(Quixx,game,Quixx.get_valid_moves(game,player,True),player)
+#         game = Quixx.get_next_state(game,player,act)
+#         play = (player+1)%num_players
+#         while play != player:
+#             act_r = greedy_bot(Quixx,game,Quixx.get_valid_moves(game,play,True),player)
+#             game = Quixx.get_next_state(game,play,act_r)
+#             play = (play+1)%num_players
+#         #rest of turn
+#         act_2 = greedy_bot(Quixx,game,Quixx.get_valid_moves(game,player),player)
+#         #if the sum is >0 at least one combination was used
+#         if act + act_2 == 0:
+#             act_2 = -1
+#         game = Quixx.get_next_state(game,player,act_2)
+#         player = (player+1)%num_players
+#         points, terminated = Quixx.get_points_and_terminated(game)
 
-    x = np.append(x,[points],axis=0)
-et = time.process_time()
-res = et - st
-# print(dict)
-print('CPU Execution time:', res, 'seconds')
-x = x[1:]
-print(np.max(x,axis=0))
-print(np.min(x,axis=0))
-print(np.average(x,axis=0))
-print(np.median(x,axis=0))
+#     x = np.append(x,[points],axis=0)
+# et = time.process_time()
+# res = et - st
+# # print(dict)
+# print('CPU Execution time:', res, 'seconds')
+# x = x[1:]
+# print(np.max(x,axis=0))
+# print(np.min(x,axis=0))
+# print(np.average(x,axis=0))
+# print(np.median(x,axis=0))
