@@ -24,18 +24,24 @@ class machikoro:
             #basic action like buying a card
             state[0][player] -= self.card_costs[action-1]
             state[1][player][action-1] += 1 
+            state[3][action-1] -= 1
         elif action in [16,17,18,19]:#upgrade
             state[0][player] -= self.card_costs[action-1]
             state[2][player][action-16] = 1
-        elif action > 19:
-            #stealing/trading
+        elif action in [20,21,22]:#if this action is chosen the current player has another action except stealing
+            #stealing 5 coins
+            #20/21/22 means steal 5 coins from player curr_player+1, curr_player+2, curr_player+3
+            coins = state[0][(player+(action-19))%len(state[0])]
+            state[0][player] = state[0][player]+coins if coins < 5 else state[0][player]+5
+            state[0][(player+(action-19))%len(state[0])] = 0 if coins <5 else state[0][(player+(action-19))%len(state[0])]-5 
             return state
         return state
     
     def distribution(self,state,player,dice):
         current_player = player 
         dice_sum = np.sum(dice)
-        
+        #order of distribution
+        #active player first makes his payments bc of others red cards then all players collect their coins then active player may take from other players
         if dice_sum in [3,9,10]:#red cards
             current_player = current_player-1 if current_player>0 else (len(state[0])-1)
             #counterclockwise payment iteration
@@ -91,25 +97,29 @@ class machikoro:
                 if current_player == player:
                     break
 
-    def get_valid_actions(self,state,player):
+    def get_valid_actions(self,state,player,can_steal = True):
         #first check which cards are available, afterwards filter the too expensive ones #regard upgrade actions stealing 5 coins or swapping cards which are handled before the card option
         num_coins = state[0][player]
         available_cards = (state[3]>0)
         for n in range(len(available_cards)):
             if n not in [6,7,8]:
                 available_cards[n] =  available_cards[n] and (num_coins >= self.card_costs[n])
+            elif n == 7:
+                available_cards[n] = (state[1][player][n] == 0) and (num_coins >= self.card_costs[n]) and can_steal
             else:
                 available_cards[n] = (state[1][player][n] == 0) and (num_coins >= self.card_costs[n])
         #available_cards contains all buyable cards // all buy card actions + action 0 ~ do nothing and actions 16,17,18,19 for upgrade option
         available_cards = np.append(np.array([]),np.argwhere(np.append(np.array([True]),available_cards)))
-        if num_coins >= 22:
-            available_cards = np.append(available_cards,np.array([16,17,18,19]))
-        elif num_coins >= 16:
-            available_cards = np.append(available_cards,np.array([16,17,18]))
-        elif num_coins >= 10:
-            available_cards = np.append(available_cards,np.array([16,17]))
-        elif num_coins >= 4:
-            available_cards = np.append(available_cards,np.array([16]))
+
+        upgrade_cost = np.array([4,10,16,22])
+        upgrade_index = np.array([16,17,18,19])
+        for i in range(len(upgrade_cost)):
+            if num_coins >= upgrade_cost[i] and state[2][player][i] == 0:
+                available_cards = np.append(available_cards,upgrade_index[i])
+
+        steal_index = np.array([20,21,22])
+        if state[1][player][7] and can_steal:
+            available_cards = np.append(available_cards,steal_index[:len(state[0])-1])
         return available_cards
     
     #Checks wether any player has all upgrades and resturns who has all upgrades is_terminated(state)[1] contains the value for if the game has ended
@@ -118,14 +128,51 @@ class machikoro:
         unlocked_all_upgrades = [np.all(state[2][i]) for i in range(len(state[2]))]
         return unlocked_all_upgrades,np.any(unlocked_all_upgrades)
 
+    def get_expected_reward(self,state,player):
+        xR = np.zeros(len(state[0]))
+        dice_values = np.arange(2,13) if state[2][player][0] else np.arange(1,7)
+        probs = dice_probs if state[2][player][0] else np.zeros(12) + 1/6
+        for val in dice_values:
+            state_copy = copy.deepcopy(state)
+            if val == 6 and state[1][player][7]: #if 5 coins might be stolen subtract the expected stolen value being own_coins/sum_coins bc the more coins one has the more likely the coins are being stolen
+                collective_coins = np.sum(state[0])-state[0][player] 
+                for i in range(len(state[0])):
+                    if i != player:
+                        xR[i] -= 1/6 * 5 * (state[0][i] / collective_coins)
+            self.distribution(state_copy,player,val)
+            xR = xR + ((state_copy[0] - state[0])*probs[val])    
+        return xR      
+
+dice_probs = {
+            2 : 1/36,
+            3 : 2/36,
+            4 : 3/36,
+            5 : 4/36,
+            6 : 5/36,
+            7 : 6/36,
+            8 : 5/36,
+            9 : 4/36,
+            10: 3/36,
+            11: 2/36,
+            12: 1/36,
+        } 
 #throws always two dice, index 0 is the relevant one for one dice throws
 def dice():
     return random.randint(1,7,size=(2))
 
 Machikoro = machikoro()
-initial = Machikoro.get_initial_state(2)
-c = copy.deepcopy(initial)
-
+initial = Machikoro.get_initial_state(3)
+initial[0][0] = 100
+initial = Machikoro.get_next_state(initial,2,1)
+initial = Machikoro.get_next_state(initial,0,15)
+initial = Machikoro.get_next_state(initial,0,15)
+initial = Machikoro.get_next_state(initial,0,8)
+initial = Machikoro.get_next_state(initial,0,7)
+initial = Machikoro.get_next_state(initial,0,3)
+initial = Machikoro.get_next_state(initial,0,3)
+initial = Machikoro.get_next_state(initial,0,19)
+print(Machikoro.get_valid_actions(initial,0))
+print(initial)
 
 #late game turn iteration
 #select one or two dice

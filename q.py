@@ -89,7 +89,7 @@ class quixx:
         return np.unique(options)
 
     #check for >=2 closed rows for each player, a row is closed if the last number in a row is marked 
-    def get_points_and_terminated(self,state):
+    def get_value_and_terminated(self,state):
         num_players = len(state)-2
         terminated = False
         closed_rows = [False,False,False,False]
@@ -107,7 +107,6 @@ class quixx:
                     last_marked = marked_num[-1][0] if len(marked_num) >0 else 0
                     state[j][i][last_marked:] = 0
 
-        print(state)
         points = np.zeros(num_players)
         for n in range(num_players):
             for m in range(4):
@@ -139,14 +138,14 @@ def greedy_bot(game,state,valid_moves,player):
 
 Quixx = quixx()
 init = Quixx.get_initial_state(4)
-print(Quixx.get_points_and_terminated(init))
+print(Quixx.get_value_and_terminated(init))
 
 # x = np.array([[0,0,0,0]])
 # st = time.process_time()
 # for i in tqdm(range(10000)):
 #     game = Quixx.get_initial_state(4)
 #     num_players = len(game)-2
-#     points, terminated = Quixx.get_points_and_terminated(game)
+#     points, terminated = Quixx.get_value_and_terminated(game)
 #     player = 0
 #     while not terminated:
 #         game[0] = dice()
@@ -165,7 +164,7 @@ print(Quixx.get_points_and_terminated(init))
 #             act_2 = -1
 #         game = Quixx.get_next_state(game,player,act_2)
 #         player = (player+1)%num_players
-#         points, terminated = Quixx.get_points_and_terminated(game)
+#         points, terminated = Quixx.get_value_and_terminated(game)
 
 #     x = np.append(x,[points],axis=0)
 # et = time.process_time()

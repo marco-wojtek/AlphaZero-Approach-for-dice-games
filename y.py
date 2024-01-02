@@ -143,10 +143,10 @@ def greedy_bot_action(game,state,player,valid_actions,throw):#Greedy bot which s
                 choice,points = option[opt][0],p[player]   
     return choice
 
-def classic_greedy_bot(game,state,player,valid_actions,throw):#Greedy bot which simulates every throw once and chooses the best expectation -> if rethrowing brings possibly a better result the risk is taken
+def classic_greedy_bot(game,state,player,valid_actions):#Greedy bot which simulates every throw once and chooses the best expectation -> if rethrowing brings possibly a better result the risk is taken
     option = np.argwhere(valid_actions)[1:]
     choice,points = -1,0
-    t = throw
+    t = 0
     while t<2:
         for opt in range(len(option)):       
             c_game = copy.deepcopy(state)

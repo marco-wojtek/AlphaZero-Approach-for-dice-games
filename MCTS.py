@@ -1,5 +1,6 @@
 import numpy as np
 import math
+import copy
 
 class Node:
     def __init__(self, game, args, state, parent=None, action_taken=None):
@@ -35,13 +36,30 @@ class Node:
         return q_value + self.args['C'] * math.sqrt(math.log(self.visit_count) / child.visit_count)
     
     def expand(self):
+        action = np.random.choice(np.where(self.expandable_moves >= 1)[0])
+        self.expandable_moves[action] = -1
+
+        child_state = copy.deepcopy(self.state)
+        #TODO
         return
     
     def simulate(self):
+        points, is_terminal = self.game.get_value_and_terminated(self.state)
+        value = np.argmax(points)
+        if is_terminal:
+            return value
+        
+        rollout_state = copy.deepcopy(self.state)
+        #TODO
         return
     
-    def backpropagate(self):
-        return
+    def backpropagate(self,value):
+        self.value_sum += value
+        self.visit_count += 1
+        
+        # value = 
+        if self.parent is not None:
+            self.parent.backpropagate(value) 
     
 class MCTS:
     def __init__(self, game, args):
@@ -72,3 +90,4 @@ class MCTS:
             action_probs[child.action_taken] = child.visit_count
         action_probs /= np.sum(action_probs)
         return action_probs
+    
