@@ -3,6 +3,7 @@ from numpy import random
 import random as r
 import time
 import itertools as iter
+from tqdm import tqdm
 import copy
 
 class machikoro:
@@ -120,7 +121,7 @@ class machikoro:
         steal_index = np.array([20,21,22])
         if state[1][player][7] and can_steal:
             available_cards = np.append(available_cards,steal_index[:len(state[0])-1])
-        return available_cards
+        return available_cards.astype(int)
     
     #Checks wether any player has all upgrades and resturns who has all upgrades is_terminated(state)[1] contains the value for if the game has ended
     #unlocked all upgrades used to determine the winner
@@ -128,10 +129,10 @@ class machikoro:
         unlocked_all_upgrades = [np.all(state[2][i]) for i in range(len(state[2]))]
         return unlocked_all_upgrades,np.any(unlocked_all_upgrades)
 
-    def get_expected_reward(self,state,player):
+    def get_expected_reward(self,state,player,dice):
         xR = np.zeros(len(state[0]))
-        dice_values = np.arange(2,13) if state[2][player][0] else np.arange(1,7)
-        probs = dice_probs if state[2][player][0] else np.zeros(12) + 1/6
+        dice_values = np.arange(2,13) if dice==1 else np.arange(1,7)
+        probs = dice_probs if dice==1 else np.zeros(12) + 1/6
         for val in dice_values:
             state_copy = copy.deepcopy(state)
             if val == 6 and state[1][player][7]: #if 5 coins might be stolen subtract the expected stolen value being own_coins/sum_coins bc the more coins one has the more likely the coins are being stolen
@@ -156,24 +157,60 @@ dice_probs = {
             11: 2/36,
             12: 1/36,
         } 
-#throws always two dice, index 0 is the relevant one for one dice throws
+#throws always two dice
 def dice():
     return random.randint(1,7,size=(2))
 
-Machikoro = machikoro()
-initial = Machikoro.get_initial_state(3)
-initial[0][0] = 100
-initial = Machikoro.get_next_state(initial,2,1)
-initial = Machikoro.get_next_state(initial,0,15)
-initial = Machikoro.get_next_state(initial,0,15)
-initial = Machikoro.get_next_state(initial,0,8)
-initial = Machikoro.get_next_state(initial,0,7)
-initial = Machikoro.get_next_state(initial,0,3)
-initial = Machikoro.get_next_state(initial,0,3)
-initial = Machikoro.get_next_state(initial,0,19)
-print(Machikoro.get_valid_actions(initial,0))
-print(initial)
+def random_bot_action(valid_actions):
+    return r.choice(valid_actions)
 
+#greedy bot should use 1 or 2 dice based on wether the expected reward is higher or lower
+def greedy_bot_action(valid_actions,dice_action=False):#greedy bot tries to buy in every turn choosing randomly which specific card to buy prioritising upgrades 
+    if dice_action:
+        return #returns the dice choice with the highest expected reward
+    upgrade_index = np.array([16,17,18,19])
+    upgradable = np.isin(upgrade_index,valid_actions)
+    if np.any(upgradable):
+        return upgrade_index[r.choice(np.argwhere(upgradable))]
+    if len(valid_actions>1):
+        return r.choice(np.where(valid_actions>0)[0])
+    
+    return 0
+
+# st = time.process_time()
+# x = np.array([[0,0,0,0]])
+# round_count = np.array([0])
+# for i in tqdm(range(10000)):
+#     Machikoro = machikoro()
+#     state = Machikoro.get_initial_state(4)
+#     player = 0
+#     round = 0
+#     while not Machikoro.is_terminated(state)[1]:
+#         round += 1
+#         j = 1
+#         if state[2][player][0]:
+#             j = r.choice([1,2])
+#         Machikoro.distribution(state,player,dice()[:j])
+#         v = Machikoro.get_valid_actions(state,player)
+#         act = r.choice(v)
+#         state = Machikoro.get_next_state(state,player,act)
+#         if act in [20,21,22]:
+#             v = Machikoro.get_valid_actions(state,player,False)
+#             act = r.choice(v)
+#             state = Machikoro.get_next_state(state,player,act)
+#         player = (player+1)%len(state[0])
+#     x = np.append(x,[np.sum(state[2],axis=1)],axis=0)
+#     round_count = np.append(round_count,round)
+# et = time.process_time()
+# res = et - st
+# print('CPU Execution time:', res, 'seconds')
+# x = x[1:]
+# print(np.average(x,axis=0))
+# print(np.median(x,axis=0))
+# round_count = round_count[1:]
+# print(np.max(round_count,axis=0))
+# print(np.min(round_count,axis=0))
+# print(np.average(round_count,axis=0))
 #late game turn iteration
 #select one or two dice
 #throw dice
@@ -183,5 +220,3 @@ print(initial)
 #if special card is owned -> trade cards/steal coins
 #choose 1 or 0 of 15 cards OR 1 or 0 of big projects to buy/build
 #end turn
-
-#TODO: Add the stealing and trading actions 
