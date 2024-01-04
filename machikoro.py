@@ -26,10 +26,10 @@ class machikoro:
             state[0][player] -= self.card_costs[action-1]
             state[1][player][action-1] += 1 
             state[3][action-1] -= 1
-        elif action in [16,17,18,19]:#upgrade
+        elif action in np.arange(16,20):#upgrade
             state[0][player] -= self.card_costs[action-1]
             state[2][player][action-16] = 1
-        elif action in [20,21,22]:#if this action is chosen the current player has another action except stealing
+        elif action in np.arange(20,22):#if this action is chosen the current player has another action except stealing
             #stealing 5 coins
             #20/21/22 means steal 5 coins from player curr_player+1, curr_player+2, curr_player+3
             coins = state[0][(player+(action-19))%len(state[0])]
@@ -138,8 +138,8 @@ class machikoro:
             if val == 6 and state[1][player][7]: #if 5 coins might be stolen subtract the expected stolen value being own_coins/sum_coins bc the more coins one has the more likely the coins are being stolen
                 collective_coins = np.sum(state[0])-state[0][player] 
                 for i in range(len(state[0])):
-                    if i != player:
-                        xR[i] -= 1/6 * 5 * (state[0][i] / collective_coins)
+                    if i != player and collective_coins>0:
+                        xR[i] = xR[i]- (1/6 * 5 * (state[0][i] / collective_coins))
             self.distribution(state_copy,player,val)
             xR = xR + ((state_copy[0] - state[0])*probs[val])    
         return xR      
@@ -165,52 +165,63 @@ def random_bot_action(valid_actions):
     return r.choice(valid_actions)
 
 #greedy bot should use 1 or 2 dice based on wether the expected reward is higher or lower
-def greedy_bot_action(valid_actions,dice_action=False):#greedy bot tries to buy in every turn choosing randomly which specific card to buy prioritising upgrades 
-    if dice_action:
-        return #returns the dice choice with the highest expected reward
+def greedy_bot_action(valid_actions):#greedy bot tries to buy in every turn choosing randomly which specific card to buy prioritising upgrades 
     upgrade_index = np.array([16,17,18,19])
     upgradable = np.isin(upgrade_index,valid_actions)
     if np.any(upgradable):
-        return upgrade_index[r.choice(np.argwhere(upgradable))]
-    if len(valid_actions>1):
-        return r.choice(np.where(valid_actions>0)[0])
+        return upgrade_index[r.choice(np.argwhere(upgradable))[0]]
+    if len(valid_actions)>1:
+        return r.choice(valid_actions[valid_actions>0])
     
     return 0
+    
+def gameloop(iterations,playerIds):
+    x = np.array([np.zeros(len(playerIds))])
+    round_count = np.array([0])
+    for i in tqdm(range(iterations)):
+        Machikoro = machikoro()
+        state = Machikoro.get_initial_state(len(playerIds))
+        player = 0
+        round = 0
+        while not Machikoro.is_terminated(state)[1]:
+            round += 1
+            j = 1
+            if state[2][player][0]:
+                if playerIds[player]>=1:    
+                    a = Machikoro.get_expected_reward(state,player,1)
+                    b = Machikoro.get_expected_reward(state,player,2)
+                    j = 2 if b[player]>a[player] else 1
+                else:
+                    j = r.choice([1,2])
+            Machikoro.distribution(state,player,dice()[:j])
+            v = Machikoro.get_valid_actions(state,player)
+            act = greedy_bot_action(v) if playerIds[player]==1 else random_bot_action(v)
+            state = Machikoro.get_next_state(state,player,act)
+            if act in np.arange(20,23):
+                v = Machikoro.get_valid_actions(state,player,False)
+                act = greedy_bot_action(v) if playerIds[player]==1 else random_bot_action(v)
+                state = Machikoro.get_next_state(state,player,act)
+            player = (player+1)%len(state[0])
+        x = np.append(x,[np.sum(state[2],axis=1)],axis=0)
+        round_count = np.append(round_count,round)
+    return x[1:],round_count[1:]
 
-# st = time.process_time()
-# x = np.array([[0,0,0,0]])
-# round_count = np.array([0])
-# for i in tqdm(range(10000)):
-#     Machikoro = machikoro()
-#     state = Machikoro.get_initial_state(4)
-#     player = 0
-#     round = 0
-#     while not Machikoro.is_terminated(state)[1]:
-#         round += 1
-#         j = 1
-#         if state[2][player][0]:
-#             j = r.choice([1,2])
-#         Machikoro.distribution(state,player,dice()[:j])
-#         v = Machikoro.get_valid_actions(state,player)
-#         act = r.choice(v)
-#         state = Machikoro.get_next_state(state,player,act)
-#         if act in [20,21,22]:
-#             v = Machikoro.get_valid_actions(state,player,False)
-#             act = r.choice(v)
-#             state = Machikoro.get_next_state(state,player,act)
-#         player = (player+1)%len(state[0])
-#     x = np.append(x,[np.sum(state[2],axis=1)],axis=0)
-#     round_count = np.append(round_count,round)
-# et = time.process_time()
-# res = et - st
-# print('CPU Execution time:', res, 'seconds')
-# x = x[1:]
-# print(np.average(x,axis=0))
-# print(np.median(x,axis=0))
-# round_count = round_count[1:]
-# print(np.max(round_count,axis=0))
-# print(np.min(round_count,axis=0))
-# print(np.average(round_count,axis=0))
+# Machikoro = machikoro()
+# state = Machikoro.get_initial_state(2)
+# state[0][1] = 100
+# v = Machikoro.get_valid_actions(state,1)
+# print(r.choice(v))
+st = time.process_time()
+x,round_count = gameloop(100,[0,1,2])
+et = time.process_time()
+res = et - st
+print('CPU Execution time:', res, 'seconds')
+print(np.average(x,axis=0))
+print(np.median(x,axis=0))
+print(np.max(round_count,axis=0))
+print(np.min(round_count,axis=0))
+print(np.average(round_count,axis=0))
+
 #late game turn iteration
 #select one or two dice
 #throw dice
