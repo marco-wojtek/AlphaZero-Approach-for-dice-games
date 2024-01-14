@@ -105,10 +105,12 @@ class machikoro:
         for n in range(len(available_cards)):
             if n not in [6,7,8]:
                 available_cards[n] =  available_cards[n] and (num_coins >= self.card_costs[n])
-            elif n == 7:
-                available_cards[n] = (state[1][player][n] == 0) and (num_coins >= self.card_costs[n]) and can_steal
             else:
                 available_cards[n] = (state[1][player][n] == 0) and (num_coins >= self.card_costs[n])
+                #TRADING DISABLED bc of too high complexity
+                if n == 8:
+                    available_cards[n] = False
+
         #available_cards contains all buyable cards // all buy card actions + action 0 ~ do nothing and actions 16,17,18,19 for upgrade option
         available_cards = np.append(np.array([]),np.argwhere(np.append(np.array([True]),available_cards)))
 
@@ -129,10 +131,10 @@ class machikoro:
         unlocked_all_upgrades = [np.all(state[2][i]) for i in range(len(state[2]))]
         return unlocked_all_upgrades,np.any(unlocked_all_upgrades)
 
-    def get_expected_reward(self,state,player,dice):
+    def get_expected_reward(self,state,player,two_dice=0):
         xR = np.zeros(len(state[0]))
-        dice_values = np.arange(2,13) if dice==1 else np.arange(1,7)
-        probs = dice_probs if dice==1 else np.zeros(12) + 1/6
+        dice_values = np.arange(2,13) if two_dice==1 else np.arange(1,7)
+        probs = dice_probs if two_dice==1 else np.zeros(12) + 1/6
         for val in dice_values:
             state_copy = copy.deepcopy(state)
             if val == 6 and state[1][player][7]: #if 5 coins might be stolen subtract the expected stolen value being own_coins/sum_coins bc the more coins one has the more likely the coins are being stolen
@@ -142,7 +144,16 @@ class machikoro:
                         xR[i] = xR[i]- (1/6 * 5 * (state[0][i] / collective_coins))
             self.distribution(state_copy,player,val)
             xR = xR + ((state_copy[0] - state[0])*probs[val])    
-        return xR      
+        return xR
+
+    def expected_reward_after_one_roatation(self,state):
+        xR = np.zeros(len(state[0]))
+        for i in range(len(state[0])):
+            reward = self.get_expected_reward(state,i)
+            if state[2][i][0]:
+                reward = (reward + self.get_expected_reward(state,i,1))/2
+            xR = xR + reward
+        return xR
 
 dice_probs = {
             2 : 1/36,
@@ -171,10 +182,24 @@ def greedy_bot_action(valid_actions):#greedy bot tries to buy in every turn choo
     if np.any(upgradable):
         return upgrade_index[r.choice(np.argwhere(upgradable))[0]]
     if len(valid_actions)>1:
-        return r.choice(valid_actions[valid_actions>0])
-    
+        return r.choice(valid_actions[valid_actions>0])   
     return 0
-    
+
+#this bot is better in 1v1s against the greedy bot but succumbs in a game of >2 players to the greedy bot
+def expecting_greedy_bot_action(game,state,player,valid_actions):
+    upgrade_index = np.array([16,17,18,19])
+    upgradable = np.isin(upgrade_index,valid_actions)
+    if np.any(upgradable):
+        return upgrade_index[r.choice(np.argwhere(upgradable))[0]]
+    if len(valid_actions)==1:
+        return valid_actions[0]
+    expected_value = np.zeros(len(valid_actions)-1)
+    for v in range(1,len(valid_actions)):
+        state_copy = copy.deepcopy(state)
+        state_copy = game.get_next_state(state_copy,player,valid_actions[v])
+        expected_value[v-1] = game.expected_reward_after_one_roatation(state_copy)[player]
+    return valid_actions[np.argmax(expected_value)+1]
+
 def gameloop(iterations,playerIds):
     x = np.array([np.zeros(len(playerIds))])
     round_count = np.array([0])
@@ -183,36 +208,58 @@ def gameloop(iterations,playerIds):
         state = Machikoro.get_initial_state(len(playerIds))
         player = 0
         round = 0
+        repeated = False
         while not Machikoro.is_terminated(state)[1]:
             round += 1
             j = 1
-            if state[2][player][0]:
+            #UPGRADE 1 HANDLING
+            if state[2][player][0]:#choose one or two dice
                 if playerIds[player]>=1:    
-                    a = Machikoro.get_expected_reward(state,player,1)
-                    b = Machikoro.get_expected_reward(state,player,2)
-                    j = 2 if b[player]>a[player] else 1
+                    a = Machikoro.get_expected_reward(state,player,1)[player]
+                    b = Machikoro.get_expected_reward(state,player,2)[player]
+                    j = 2 if b>a else 1
                 else:
                     j = r.choice([1,2])
-            Machikoro.distribution(state,player,dice()[:j])
+            ###################
+            dice_throw = dice()[:j]
+            #UPGRADE 4 HANDLING
+            if state[2][player][3] and playerIds[player]>=1:#choose to rethrow random bot has no use of rethrow 
+                state_copy = copy.deepcopy(state)
+                coins_before_payout = state_copy[0][player]
+                Machikoro.distribution(state_copy,player,dice_throw)
+                new_coin_number = coins_before_payout - state_copy[0][player]
+                if (len(dice_throw)==1 and new_coin_number < a) or (len(dice_throw)==2 and new_coin_number < b):
+                    dice_throw = dice()[:j]
+            ###################
+            Machikoro.distribution(state,player,dice_throw)
             v = Machikoro.get_valid_actions(state,player)
-            act = greedy_bot_action(v) if playerIds[player]==1 else random_bot_action(v)
+            act = expecting_greedy_bot_action(Machikoro,state,player,v) if playerIds[player]==2 else greedy_bot_action(v) if playerIds[player]==1 else random_bot_action(v)
             state = Machikoro.get_next_state(state,player,act)
             if act in np.arange(20,23):
                 v = Machikoro.get_valid_actions(state,player,False)
-                act = greedy_bot_action(v) if playerIds[player]==1 else random_bot_action(v)
+                act = expecting_greedy_bot_action(Machikoro,state,player,v) if playerIds[player]==2 else greedy_bot_action(v) if playerIds[player]==1 else random_bot_action(v)
                 state = Machikoro.get_next_state(state,player,act)
-            player = (player+1)%len(state[0])
+            #UPGRADE 3 HANDLING
+            if len(dice_throw)==2 and not repeated and dice_throw[0]==dice_throw[1]:#if the two used dice are identical the player gets another turn but only once
+                repeated = True
+            else:
+                player = (player+1)%len(state[0])
+                repeated = False
+            ###################
         x = np.append(x,[np.sum(state[2],axis=1)],axis=0)
         round_count = np.append(round_count,round)
     return x[1:],round_count[1:]
 
 # Machikoro = machikoro()
 # state = Machikoro.get_initial_state(2)
-# state[0][1] = 100
-# v = Machikoro.get_valid_actions(state,1)
-# print(r.choice(v))
+# print(state)
+# state[0][0] = 100
+# print(state)
+# v = Machikoro.get_valid_actions(state,0)
+# print(v)
+# print(expecting_greedy_bot_action(Machikoro,state,0,v))
 st = time.process_time()
-x,round_count = gameloop(100,[0,1,2])
+x,round_count = gameloop(1000,[2,2])
 et = time.process_time()
 res = et - st
 print('CPU Execution time:', res, 'seconds')

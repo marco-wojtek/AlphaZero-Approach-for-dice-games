@@ -80,13 +80,13 @@ options = np.array([lambda x: count_eyes(x,i=1),#0
            chance#12
            ])
 
-class yahtzee:
+class yahtzee: #sorting the dice arrays changes the number of possible dice states from 7776 to 252 states
     def __init__(self,num_players):
         assert num_players in [1,2,3,4]
         self.player_num = num_players
 
     def get_valid_moves(self,state,player,rethrow):
-        return np.append(rethrow<2,state[1][player] == -1)
+        return np.ravel(np.argwhere(np.append(rethrow<2,state[1][player] == -1)))
 
     def get_next_state(self,state,player,action,re_dice=[0,0,0,0,0]):
         if action == 0:
@@ -98,7 +98,7 @@ class yahtzee:
     def get_initial_state(self):
         state = np.array([
             np.zeros(5),
-            np.ones((self.player_num,13)) * -1
+            np.ones((self.player_num,len(options))) * -1
         ],dtype=object)
         return state
 
@@ -114,12 +114,12 @@ class yahtzee:
 all_permutations = list(iter.product(range(0,2),repeat=5))
 
 def random_bot_action(game,state,player,valid_actions):
-    c = r.choice(np.argwhere(valid_actions))[0]
-    throw = 1
-    while c==0:
+    c = r.choice(valid_actions)
+    throw = 0
+    while c==0 and throw<3:
         state = game.get_next_state(state,player,0,np.asarray(r.choice(all_permutations)))
         v = game.get_valid_moves(state,player,throw)
-        c = r.choice(np.argwhere(v))[0]
+        c = r.choice(v)
         throw += 1
     return c
 
@@ -144,29 +144,29 @@ def greedy_bot_action(game,state,player,valid_actions,throw):#Greedy bot which s
     return choice
 
 def classic_greedy_bot(game,state,player,valid_actions):#Greedy bot which simulates every throw once and chooses the best expectation -> if rethrowing brings possibly a better result the risk is taken
-    option = np.argwhere(valid_actions)[1:]
+    option = valid_actions[1:]
     choice,points = -1,0
     t = 0
     while t<2:
         for opt in range(len(option)):       
             c_game = copy.deepcopy(state)
-            c_game = game.get_next_state(c_game,player,option[opt][0])
-            p = options[option[opt][0]-1](c_game[0])
+            c_game = game.get_next_state(c_game,player,option[opt])
+            p = options[option[opt]-1](c_game[0])
             if p>points:
-                choice,points = option[opt][0],p
+                choice,points = option[opt],p
         if points == 0:
             state = game.get_next_state(state,player,0,[1,1,1,1,1])
             t+=1
         else:
             break
     if choice == -1:
-        choice = r.choice(option)[0]
+        choice = r.choice(option)
     return choice
 
 #Random Bot simulation
 # x = np.array([[0,0,0,0]])
 # st = time.process_time()
-# for i in tqdm(range(10000)):
+# for i in tqdm(range(100)):
 #     Yahtzee = yahtzee(4)
 #     game = Yahtzee.get_initial_state()
 #     game = Yahtzee.get_next_state(game,0,0,[1,1,1,1,1])
@@ -193,7 +193,7 @@ def classic_greedy_bot(game,state,player,valid_actions):#Greedy bot which simula
 #Greedy Bot simulation
 # x = np.array([[0,0,0,0]])
 # st = time.process_time()
-# for i in tqdm(range(10000)):
+# for i in tqdm(range(100)):
 #     Yahtzee = yahtzee(4)
 #     game = Yahtzee.get_initial_state()
 #     game = Yahtzee.get_next_state(game,0,0,[1,1,1,1,1])
@@ -201,7 +201,7 @@ def classic_greedy_bot(game,state,player,valid_actions):#Greedy bot which simula
 #     throw = 0
 #     while not Yahtzee.get_points_and_terminated(game)[1]:
 #         v = Yahtzee.get_valid_moves(game,player,0)
-#         act = classic_greedy_bot(Yahtzee,game,player,v,0)
+#         act = classic_greedy_bot(Yahtzee,game,player,v)
 #         game = Yahtzee.get_next_state(game,player,act)
 #         game = Yahtzee.get_next_state(game,player,0,[1,1,1,1,1])
 #         player = (player+1)%4
@@ -212,6 +212,7 @@ def classic_greedy_bot(game,state,player,valid_actions):#Greedy bot which simula
 # res = et - st
 # print('CPU Execution time:', res, 'seconds')
 # x = x[1:]
+
 # print(np.max(x,axis=0))
 # print(np.min(x,axis=0))
 # print(np.average(x,axis=0))

@@ -137,9 +137,18 @@ def greedy_bot(game,state,valid_moves,player):
     return valid_moves[np.argmin(distances)]
 
 Quixx = quixx()
-init = Quixx.get_initial_state(4)
-print(Quixx.get_value_and_terminated(init))
-
+state = Quixx.get_initial_state(4)
+print(state)
+print(Quixx.action_space)
+# player = 0
+# state[0] = dice()
+# v = Quixx.get_valid_moves(state,player)
+# w = Quixx.get_valid_moves(state,player,True)
+# print(v)
+# print(w)
+# state = Quixx.get_next_state(state,player,r.choice(v))
+# print(state)
+# print(Quixx.action_space)
 # x = np.array([[0,0,0,0]])
 # st = time.process_time()
 # for i in tqdm(range(10000)):
