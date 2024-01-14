@@ -278,3 +278,4 @@ print(np.average(round_count,axis=0))
 #if special card is owned -> trade cards/steal coins
 #choose 1 or 0 of 15 cards OR 1 or 0 of big projects to buy/build
 #end turn
+ 
