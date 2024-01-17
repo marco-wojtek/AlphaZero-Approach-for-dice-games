@@ -52,7 +52,7 @@ class Yahtzee:
         return state
 
     def get_points_and_terminated(self,state):
-        return np.sum(state[1]>=0,axis=1), not np.any(state[1]==-1)
+        return np.sum(state[1],axis=1), not np.any(state[1]==-1)#np.sum(state[1]>=0,axis=1), not np.any(state[1]==-1)
 
 class Node:
     #initialises a node with game, gamestate, the latest active player, parent node, last action taken, wether the node is chance or descision and rethrow choice which is only relevant for last action 0
@@ -211,6 +211,7 @@ class MCTS:
             except:
                 index = np.argwhere([perm == tuple([int(i) for a,i in enumerate(child_key)]) for perm in all_permutations])
                 action_probs[index] += child_value.visit_count
+        print(action_probs)
         action_probs /= np.sum(action_probs)
         print(self.calc_depth(root))
         return action_probs
@@ -281,7 +282,7 @@ def random_bot_action(game,state,player,valid_actions):
 yahtzee = Yahtzee(2)
 player = 0
 state = yahtzee.get_initial_state()
-state[0] = np.array([4,4,5])
+state[0] = np.array([1,1,2])
 
 # state[1][0][2] = 0
 # state[1][1][2] = 0
@@ -290,11 +291,11 @@ state[0] = np.array([4,4,5])
 print(all_permutations)
 
 print(state)
-for i in range(4,5):
+for i in range(3,4):
     
     args = {
         'C': 0.5+i,
-        'num_searches': 20000
+        'num_searches': 10000
     }
     print("C:",args['C'])
     mcts = MCTS(yahtzee, args)
