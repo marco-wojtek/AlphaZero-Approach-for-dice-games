@@ -80,17 +80,17 @@ options = np.array([lambda x: count_eyes(x,i=1),#0
            chance#12
            ])
 
-class yahtzee: #sorting the dice arrays changes the number of possible dice states from 7776 to 252 states
+class Yahtzee: #sorting the dice arrays changes the number of possible dice states from 7776 to 252 states
     def __init__(self,num_players):
         assert num_players in [1,2,3,4]
         self.player_num = num_players
 
     def get_valid_moves(self,state,player,rethrow):
         return np.ravel(np.argwhere(np.append(rethrow<2,state[1][player] == -1)))
-
-    def get_next_state(self,state,player,action,re_dice=[0,0,0,0,0]):
+   
+    def get_next_state(self,state,player,action,re_dice=None):
         if action == 0:
-            state[0] = rethrow(state[0],re_dice)
+            state[0] = rethrow(state[0],np.zeros(len(state[0])))
         else:
             state[1][player][action-1] = options[action-1](state[0])
         return state
