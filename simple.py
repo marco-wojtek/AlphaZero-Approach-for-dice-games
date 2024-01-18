@@ -12,7 +12,7 @@ def rethrow(dice, to_rethrow):
     for i in range(len(dice)):
         if to_rethrow[i]:
             dice[i] = random.randint(1,6) 
-    return dice
+    return np.sort(dice)
 
 def straight(dice):
     cnt_longest_seq = 1
@@ -23,7 +23,7 @@ def straight(dice):
 
 options = np.array([
            lambda x: 20 if straight(x) else 0, #straight
-           lambda x: 30 if np.count_nonzero(x==x[0]) == 3 else 0,#yahtzee
+           lambda x: 35 if np.count_nonzero(x==x[0]) == 3 else 0,#yahtzee
            lambda x: np.sum(x)#chance
            ])
 
@@ -56,7 +56,7 @@ class Yahtzee:
 
 class Node:
     #initialises a node with game, gamestate, the latest active player, parent node, last action taken, wether the node is chance or descision and rethrow choice which is only relevant for last action 0
-    def __init__(self, game, args, state, active_player, parent=None, action_taken=None, ischance = False, rethrow_choice =  None):
+    def __init__(self, game, args, state, active_player, parent=None, action_taken=None, ischance = False, rethrow_choice =  None, throw=0):
         self.game = game
         self.args = args
         self.state = state
@@ -65,10 +65,11 @@ class Node:
         self.ischance = ischance
         self.children = {}
         self.active_player = active_player
-        self.throw = 0 if (self.parent is None or self.parent.active_player!=self.active_player) else self.parent.throw + (self.action_taken==0)
+        self.throw = throw
         #one list of moves/or rethrow choices for descision nodes| a list of possible dice states plus their probobilities
 
-        self.expandable_moves = calc_sorted_possible_dice_states(self.state[0],rethrow_choice) if ischance else copy.deepcopy(all_permutations) if action_taken==0 else game.get_valid_moves(self.state,self.active_player,self.throw)
+        self.rethrow_choice = rethrow_choice
+        self.expandable_moves = calc_sorted_possible_dice_states(self.state[0],self.rethrow_choice) if ischance else copy.deepcopy(all_permutations) if action_taken==0 else game.get_valid_moves(self.state,self.active_player,self.throw)
             
         self.visit_count = 0
         self.value_sum = 0
@@ -115,7 +116,7 @@ class Node:
             index = r.choice(np.ravel(np.argwhere([self.expandable_moves[i]!=-1 for i in range(len(self.expandable_moves))])))
             permutation = self.expandable_moves[index]
             child_state = copy.deepcopy(self.state)
-            child = Node(self.game,self.args,child_state,self.active_player,self,None,True,permutation)
+            child = Node(self.game,self.args,child_state,self.active_player,self,None,True,permutation,self.throw+1)
             child.expand()###
             self.children[''.join(str(x) for x in permutation)] = child
             self.expandable_moves[index] = -1
@@ -144,10 +145,10 @@ class Node:
             self.children[action] = child
             self.expandable_moves[np.argwhere(self.expandable_moves==action)[0][0]]  = -1
 
-    
         return child
     
     def simulate(self):
+
         points, is_terminal = self.game.get_points_and_terminated(self.state)
         value = np.argmax(points) if np.count_nonzero(points==np.max(points))==1 else -1
         if is_terminal:
@@ -155,6 +156,22 @@ class Node:
         
         rollout_state = copy.deepcopy(self.state)
         player = self.active_player
+        #current node is a chance node after a rethrow node: simulate the turn but with the exception that the first action is a rethrow with the rethrow choice
+        if self.ischance and self.parent.action_taken==0:
+            throw = self.throw
+            rollout_state = self.game.get_next_state(rollout_state,player,0,self.rethrow_choice)
+            v = self.game.get_valid_moves(rollout_state,player,throw)
+            act = r.choice(v)
+            while act == 0 and throw<2:
+                rollout_state = self.game.get_next_state(rollout_state,player,act,[1,1,1])
+                v = self.game.get_valid_moves(rollout_state,player,throw)
+                throw += 1
+                act = r.choice(v)
+            rollout_state = self.game.get_next_state(rollout_state,player,act)
+            rollout_state = self.game.get_next_state(rollout_state,player,0,[1,1,1])
+            player = (player+1)%len(self.state[1])
+            points, is_terminal = self.game.get_points_and_terminated(rollout_state)
+
         while not is_terminal:
             throw = 0
             v = self.game.get_valid_moves(rollout_state,player,throw)
@@ -173,8 +190,8 @@ class Node:
     
     def backpropagate(self,value):
         #2-player simulation returns either 0 or 1 for the corresponding winner
-        #a tie returns -1 meaning no winner; MCTS shouldn't strive for a tie
-        self.value_sum += (-1)**(value!=self.active_player) #* (1+ (np.sum(self.state[1][self.active_player])/np.sum(self.state[1]))) #statt self.state, das ergebnis der simulation/ die Punkte der simulation
+        #a tie returns -1 meaning no winner; MCTS shouldn't strive for a tie #test 0 for tie
+        self.value_sum += (-1)**(value!=self.active_player) * (0<=value) #* (1+ (np.sum(self.state[1][self.active_player])/np.sum(self.state[1]))) #statt self.state, das ergebnis der simulation/ die Punkte der simulation
         self.visit_count += 1
          
         if self.parent is not None:
@@ -187,8 +204,8 @@ class MCTS:
         self.args = args
     
     #returns the probabilities for the possible actions
-    def search(self,state,player,last_action=None):
-        root = Node(self.game,self.args,state,player,action_taken=last_action)
+    def search(self,state,player,last_action=None,throw=0):
+        root = Node(self.game,self.args,state,player,action_taken=last_action,throw=throw)
         for search in tqdm(range(self.args['num_searches'])):
             node = root
             
@@ -204,16 +221,17 @@ class MCTS:
             
             node.backpropagate(value)
 
-        action_probs = np.zeros(len(root.children))
+        action_probs = np.zeros(len(root.children)) if root.action_taken==0 else np.zeros(len(options)+1)
         for child_key, child_value in root.children.items():
+
             try:#child key is integer
                 action_probs[child_key] += child_value.visit_count
             except:
                 index = np.argwhere([perm == tuple([int(i) for a,i in enumerate(child_key)]) for perm in all_permutations])
                 action_probs[index] += child_value.visit_count
-        print(action_probs)
+        #print(action_probs)
         action_probs /= np.sum(action_probs)
-        print(self.calc_depth(root))
+        #print(self.calc_depth(root))
         return action_probs
 
     def calc_depth(self,root):
@@ -246,13 +264,17 @@ def calc_dice_state_probabilities(all_possible_dice_states):
 def calc_sorted_possible_dice_states(current_dice, changing_dice):
     if changing_dice is None or np.all(changing_dice):
         return sorted_possible_dice_states, calc_dice_state_probabilities(possible_dice_states)
-    
+
     sorted_states = list()
     state_list = list()
     for elem in possible_dice_states:
         is_similar = True
         for i in range(len(current_dice)):
-            if not changing_dice[i] and elem.count(current_dice[i])<np.count_nonzero(np.ma.masked_array(current_dice,mask=changing_dice)==current_dice[i]):
+            # if not changing_dice[i] and elem.count(current_dice[i])<np.count_nonzero(np.ma.masked_array(current_dice,mask=changing_dice)==current_dice[i]):
+            #     is_similar = False
+            #     break
+
+            if changing_dice[i] == 0 and  current_dice[i] != elem[i]:
                 is_similar = False
                 break
 
@@ -279,35 +301,55 @@ def random_bot_action(game,state,player,valid_actions):
         throw += 1
     return c
 
-yahtzee = Yahtzee(2)
-player = 0
-state = yahtzee.get_initial_state()
-state[0] = np.array([1,1,2])
+def classic_greedy_bot(game,state,player,valid_actions):
+    option = valid_actions[1:]
+    choice,points = -1,0
+    t = 0
+    while t<2:
+        for opt in range(len(option)):       
+            c_game = copy.deepcopy(state)
+            c_game = game.get_next_state(c_game,player,option[opt])
+            p = options[option[opt]-1](c_game[0])
+            if p>points:
+                choice,points = option[opt],p
+        if points == 0:
+            state = game.get_next_state(state,player,0,[1,1,1])
+            t+=1
+        else:
+            break
+    if choice == -1:
+        choice = r.choice(option)
+    return choice
 
-# state[1][0][2] = 0
-# state[1][1][2] = 0
+# yahtzee = Yahtzee(2)
+# player = 0
+# state = yahtzee.get_initial_state()
+# state[0] = np.array([4,5,5])
+
+# state[1][0][1] = 0
+# state[1][1][1] = 0
 # state[1][0][0] = 0
 # state[1][1][0] = 0
-print(all_permutations)
+# print(all_permutations)
 
-print(state)
-for i in range(3,4):
+# print(state)
+# for i in range(3,4):
     
-    args = {
-        'C': 0.5+i,
-        'num_searches': 10000
-    }
-    print("C:",args['C'])
-    mcts = MCTS(yahtzee, args)
+#     args = {
+#         'C': 0.5+i,
+#         'num_searches': 10000
+#     }
+#     print("C:",args['C'])
+#     mcts = MCTS(yahtzee, args)
   
-    if player == 0:
-        mcts_probs = mcts.search(state,player)
-        print(mcts_probs)
-        action = np.argmax(mcts_probs)
-        print(action)
-        print(np.argsort(mcts_probs))
-    else:
-        action = random_bot_action(yahtzee,state,player,yahtzee.get_valid_moves(state,player,0))
+#     if player == 0:
+#         mcts_probs = mcts.search(state,player)
+#         print(mcts_probs)
+#         action = np.argmax(mcts_probs)
+#         print(action)
+#         print(np.argsort(mcts_probs))
+#     else:
+#         action = random_bot_action(yahtzee,state,player,yahtzee.get_valid_moves(state,player,0))
 
 #Entdeckter Fehler:
         # bei Würfelzuständen wo 2 gleich sind aber der Wert der einzelnen kleiner ist als die einer der gleichen gibt es fehler z.b. (4,1,4)
@@ -319,3 +361,43 @@ for i in range(3,4):
         ##################################################
 #vielleicht beim Backtracking Punkteverhältniss berücksichtigen sodass ein Sieg mit 120 zu 40 Punkten besser darsteht als ein Sieg mit 120 zu 110 Punkten value = 1 + eigene/gesamt 
         #Muss getestet werde; Vergangener fehler wegen Nulldivision deutet auf falsche simulation
+
+#fälle wie (4,4,6) werden noch falsch behandelt, aber erst bei hohen Zahlen Quersumme >~12
+    
+player = 0
+throw = 0
+action = -1
+yahtzee = Yahtzee(2)
+state = yahtzee.get_initial_state()
+state = yahtzee.get_next_state(state,player,0,(1,1,1))
+args = {
+    'C': 3.5,
+    'num_searches': 10000
+}
+print("C:",args['C'])
+mcts = MCTS(yahtzee, args)
+points, is_terminated = yahtzee.get_points_and_terminated(state)
+
+while not is_terminated:
+    mcts_probs = np.array([])
+    if player == 0:
+        mcts_probs = mcts.search(state,player,action,throw)
+        action = np.argmax(mcts_probs)
+            
+    else:
+        action = classic_greedy_bot(yahtzee,state,player,yahtzee.get_valid_moves(state,player,throw))
+
+    if len(mcts_probs)==(len(options)+1) and action == 0: #rand bot will never return 0 since rethrow is internally
+        continue
+    elif len(mcts_probs)==len(all_permutations):
+        state = yahtzee.get_next_state(state,player,0,all_permutations[action])
+        throw += 1
+    else:
+        state = yahtzee.get_next_state(state,player,action)
+        state = yahtzee.get_next_state(state,player,0,(1,1,1))
+        player = (player+1)%len(state[1])        
+        throw = 0
+    points, is_terminated = yahtzee.get_points_and_terminated(state)
+print(state)
+print(points)
+        
