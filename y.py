@@ -116,7 +116,7 @@ all_permutations = list(iter.product(range(0,2),repeat=5))
 def random_bot_action(game,state,player,valid_actions):
     c = r.choice(valid_actions)
     throw = 0
-    while c==0 and throw<3:
+    while c==0 and throw<2:
         state = game.get_next_state(state,player,0,np.asarray(r.choice(all_permutations)))
         v = game.get_valid_moves(state,player,throw)
         c = r.choice(v)

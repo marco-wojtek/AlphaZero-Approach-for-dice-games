@@ -67,7 +67,6 @@ class Node:
         self.active_player = active_player
         self.throw = throw
         #one list of moves/or rethrow choices for descision nodes| a list of possible dice states plus their probobilities
-
         self.rethrow_choice = rethrow_choice
         self.expandable_moves = calc_sorted_possible_dice_states(self.state[0],self.rethrow_choice) if ischance else copy.deepcopy(all_permutations) if action_taken==0 else game.get_valid_moves(self.state,self.active_player,self.throw)
             
@@ -96,27 +95,16 @@ class Node:
                 
         return best_child
     
-    def get_ucb(self,child):
-        q_value = 1 - ((child.value_sum / child.visit_count) + 1) / 2
+    def get_ucb(self,child):########################################
+        q_value = 1- ((child.value_sum / child.visit_count) + 1) / 2
         return q_value + self.args['C'] * math.sqrt(math.log(self.visit_count) / child.visit_count)
-    
-    #Two Optons on how to expand:
-    #1. append all possible children directly -> high cost
-    #2. append them "On-demand" -> good for high branching factor, but higher risk that parent
-    # will not be tested due to some bad first results
+
     def expand(self):
-        #V2. append on-demand except for chance nodes
-        #case if last decision node chose "rethrow" ~ action 0 following node is chance node
-        #SIMULATION MUST ACKNOWLEDGE THE RETHROW DECISION
-        ##################################################
-        ##################################################
-        ##################################################
-        ##################################################
         if self.action_taken == 0:
             index = r.choice(np.ravel(np.argwhere([self.expandable_moves[i]!=-1 for i in range(len(self.expandable_moves))])))
             permutation = self.expandable_moves[index]
             child_state = copy.deepcopy(self.state)
-            child = Node(self.game,self.args,child_state,self.active_player,self,None,True,permutation,self.throw+1)
+            child = Node(self.game,self.args,child_state,self.active_player,self,None,True,permutation,self.throw+1)#add node with specific rethrow choice
             child.expand()###
             self.children[''.join(str(x) for x in permutation)] = child
             self.expandable_moves[index] = -1
@@ -126,19 +114,21 @@ class Node:
             for dices in self.expandable_moves[0]:
                 child_state = copy.deepcopy(self.state)
                 child_state[0] = np.asarray(dices)
-                child = Node(self.game,self.args,child_state,self.active_player,self,None,False)
+                child = Node(self.game,self.args,child_state,self.active_player,self,None,False,throw=self.throw)#add node for all dice outcomes
                 self.children[''.join(str(x) for x in dices)] = child
 
         #normal decision node case following node is either chance node or decision node for rethrow
         else:
+            assert self.parent == None or self.parent.ischance
             action = self.expandable_moves[r.choice(np.where(self.expandable_moves!=-1)[0])]
             child_state = copy.deepcopy(self.state)
             if action == 0:
-                child = Node(self.game,self.args,child_state,self.active_player,self,action,False)
+                
+                child = Node(self.game,self.args,child_state,self.active_player,self,action,False,throw=self.throw)#add rethrow node where rethrow choice is TBD
             else:
                 child_state = self.game.get_next_state(child_state,self.active_player,action)
-                # child_state[0] = rethrow(child_state[0],np.ones(len(child_state[0]))) # rethrow isnt happening actively
-                child = Node(self.game,self.args,child_state,(self.active_player+1)%len(child_state[1]),self,action,True)
+                #the child with the new player doesn't have new dice since this is handled in the children of the child since the child is chance
+                child = Node(self.game,self.args,child_state,(self.active_player+1)%len(child_state[1]),self,action,True)#add node for new players turn
                 assert self.active_player != child.active_player
                 child.expand()###
 
@@ -148,7 +138,7 @@ class Node:
         return child
     
     def simulate(self):
-
+        assert self.parent is not None #a simulation is made onto a child thus the simulation node should have a parent
         points, is_terminal = self.game.get_points_and_terminated(self.state)
         value = np.argmax(points) if np.count_nonzero(points==np.max(points))==1 else -1
         if is_terminal:
@@ -156,34 +146,47 @@ class Node:
         
         rollout_state = copy.deepcopy(self.state)
         player = self.active_player
-        #current node is a chance node after a rethrow node: simulate the turn but with the exception that the first action is a rethrow with the rethrow choice
-        if self.ischance and self.parent.action_taken==0:
-            throw = self.throw
+        throw = self.throw
+        #simulate with specific rethrow choice
+        if self.ischance and self.action_taken is None:
+            #throw = self.throw
+            assert throw > 0 
             rollout_state = self.game.get_next_state(rollout_state,player,0,self.rethrow_choice)
             v = self.game.get_valid_moves(rollout_state,player,throw)
             act = r.choice(v)
             while act == 0 and throw<2:
-                rollout_state = self.game.get_next_state(rollout_state,player,act,[1,1,1])
+                rollout_state = self.game.get_next_state(rollout_state,player,act,r.choice(all_permutations))
                 v = self.game.get_valid_moves(rollout_state,player,throw)
                 throw += 1
                 act = r.choice(v)
             rollout_state = self.game.get_next_state(rollout_state,player,act)
             rollout_state = self.game.get_next_state(rollout_state,player,0,[1,1,1])
             player = (player+1)%len(self.state[1])
-            points, is_terminal = self.game.get_points_and_terminated(rollout_state)
-
-        while not is_terminal:
             throw = 0
+            points, is_terminal = self.game.get_points_and_terminated(rollout_state)
+        #simulate after rethrow was chosen but specific rethrow choice (-> pick any rethrow)
+        elif not self.ischance and self.action_taken==0:
+            rollout_state = self.game.get_next_state(rollout_state,player,0,r.choice(all_permutations)) 
+            throw += 1
+        #action was chosen so the game must simulate the node with new player and use new dice
+        elif self.ischance and self.action_taken > 0:
+            rollout_state = self.game.get_next_state(rollout_state,player,0,(1,1,1)) 
+        else:
+            print("Node data: self.ischance = {}, self.action_taken = {}".format(self.ischance,self.action_taken))
+            raise Exception("Else Case shouldn't be reachable due to Expansion implementation")
+        while not is_terminal:
             v = self.game.get_valid_moves(rollout_state,player,throw)
             act = r.choice(v)
             while act == 0 and throw<2:
-                rollout_state = self.game.get_next_state(rollout_state,player,act,[1,1,1])
+                rollout_state = self.game.get_next_state(rollout_state,player,act,r.choice(all_permutations))
                 v = self.game.get_valid_moves(rollout_state,player,throw)
                 throw += 1
                 act = r.choice(v)
+
             rollout_state = self.game.get_next_state(rollout_state,player,act)
             rollout_state = self.game.get_next_state(rollout_state,player,0,[1,1,1])
-            player = (player+1)%len(self.state[1])
+            player = (player+1) %len(self.state[1])
+            throw = 0
             points, is_terminal = self.game.get_points_and_terminated(rollout_state)
 
         return np.argmax(points) if np.count_nonzero(points==np.max(points))==1 else -1
@@ -222,14 +225,19 @@ class MCTS:
             node.backpropagate(value)
 
         action_probs = np.zeros(len(root.children)) if root.action_taken==0 else np.zeros(len(options)+1)
+        x = np.zeros(len(root.children)) if root.action_taken==0 else np.zeros(len(options)+1)
         for child_key, child_value in root.children.items():
 
             try:#child key is integer
                 action_probs[child_key] += child_value.visit_count
+                x[child_key] += root.get_ucb(child_value)
             except:
                 index = np.argwhere([perm == tuple([int(i) for a,i in enumerate(child_key)]) for perm in all_permutations])
                 action_probs[index] += child_value.visit_count
+                x[index] += root.get_ucb(child_value)
         #print(action_probs)
+        print(x)
+        print(np.argmax(x))
         action_probs /= np.sum(action_probs)
         #print(self.calc_depth(root))
         return action_probs
@@ -294,7 +302,7 @@ def calc_sorted_possible_dice_states(current_dice, changing_dice):
 def random_bot_action(game,state,player,valid_actions):
     c = r.choice(valid_actions)
     throw = 0
-    while c==0 and throw<3:
+    while c==0 and throw<2:
         state = game.get_next_state(state,player,0,np.asarray(r.choice(all_permutations)))
         v = game.get_valid_moves(state,player,throw)
         c = r.choice(v)
@@ -321,35 +329,38 @@ def classic_greedy_bot(game,state,player,valid_actions):
         choice = r.choice(option)
     return choice
 
-# yahtzee = Yahtzee(2)
-# player = 0
-# state = yahtzee.get_initial_state()
-# state[0] = np.array([4,5,5])
+yahtzee = Yahtzee(2)
+player = 0
+state = yahtzee.get_initial_state()
+state[0] = np.array([1,6,6])
 
-# state[1][0][1] = 0
-# state[1][1][1] = 0
+
 # state[1][0][0] = 0
 # state[1][1][0] = 0
-# print(all_permutations)
+# state[1][0][1] = 0
+# state[1][1][1] = 0
+# state[1][0][2] = 0
+# state[1][1][2] = 0
+print(all_permutations)
 
-# print(state)
-# for i in range(3,4):
+print(state)
+for i in range(1):
     
-#     args = {
-#         'C': 0.5+i,
-#         'num_searches': 10000
-#     }
-#     print("C:",args['C'])
-#     mcts = MCTS(yahtzee, args)
+    args = {
+        'C': 1.41,
+        'num_searches': 100000
+    }
+    print("C:",args['C'])
+    mcts = MCTS(yahtzee, args)
   
-#     if player == 0:
-#         mcts_probs = mcts.search(state,player)
-#         print(mcts_probs)
-#         action = np.argmax(mcts_probs)
-#         print(action)
-#         print(np.argsort(mcts_probs))
-#     else:
-#         action = random_bot_action(yahtzee,state,player,yahtzee.get_valid_moves(state,player,0))
+    if player == 0:
+        mcts_probs = mcts.search(state,player,0)
+        print(mcts_probs)
+        action = np.argmax(mcts_probs)
+        print(action)
+        print(np.argsort(mcts_probs))
+    else:
+        action = random_bot_action(yahtzee,state,player,yahtzee.get_valid_moves(state,player,0))
 
 #Entdeckter Fehler:
         # bei Würfelzuständen wo 2 gleich sind aber der Wert der einzelnen kleiner ist als die einer der gleichen gibt es fehler z.b. (4,1,4)
@@ -364,40 +375,49 @@ def classic_greedy_bot(game,state,player,valid_actions):
 
 #fälle wie (4,4,6) werden noch falsch behandelt, aber erst bei hohen Zahlen Quersumme >~12
     
-player = 0
-throw = 0
-action = -1
-yahtzee = Yahtzee(2)
-state = yahtzee.get_initial_state()
-state = yahtzee.get_next_state(state,player,0,(1,1,1))
-args = {
-    'C': 3.5,
-    'num_searches': 10000
-}
-print("C:",args['C'])
-mcts = MCTS(yahtzee, args)
-points, is_terminated = yahtzee.get_points_and_terminated(state)
+# player = 0
+# throw = 0
+# action = -1
+# yahtzee = Yahtzee(2)
+# state = yahtzee.get_initial_state()
+# state = yahtzee.get_next_state(state,player,0,(1,1,1))
+# args = {
+#     'C': 3.5,
+#     'num_searches': 10000
+# }
+# print("C:",args['C'])
+# mcts = MCTS(yahtzee, args)
+# points, is_terminated = yahtzee.get_points_and_terminated(state)
 
-while not is_terminated:
-    mcts_probs = np.array([])
-    if player == 0:
-        mcts_probs = mcts.search(state,player,action,throw)
-        action = np.argmax(mcts_probs)
-            
-    else:
-        action = classic_greedy_bot(yahtzee,state,player,yahtzee.get_valid_moves(state,player,throw))
+# print(state)
+# while not is_terminated:
+#     print("ACTIVE PLAYER IS PLAYER ",player)
+#     mcts_probs = np.array([])
+#     if player == 0:
+#         mcts_probs = mcts.search(state,player,action,throw)
+#         action = np.argmax(mcts_probs)           
+#     else:
+#         action = classic_greedy_bot(yahtzee,state,player,yahtzee.get_valid_moves(state,player,throw))
 
-    if len(mcts_probs)==(len(options)+1) and action == 0: #rand bot will never return 0 since rethrow is internally
-        continue
-    elif len(mcts_probs)==len(all_permutations):
-        state = yahtzee.get_next_state(state,player,0,all_permutations[action])
-        throw += 1
-    else:
-        state = yahtzee.get_next_state(state,player,action)
-        state = yahtzee.get_next_state(state,player,0,(1,1,1))
-        player = (player+1)%len(state[1])        
-        throw = 0
-    points, is_terminated = yahtzee.get_points_and_terminated(state)
-print(state)
-print(points)
+#     if len(mcts_probs)==(len(options)+1) and action == 0: #rand bot will never return 0 since rethrow is internally
+#         continue
+#     elif len(mcts_probs)==len(all_permutations):
+#         print("dice before choice:\n",state[0])
+#         state = yahtzee.get_next_state(state,player,0,all_permutations[action])
+#         throw += 1
+#         print("rethrow choice: ", all_permutations[action])
+#         print("state after choice:\n",state)
+#         continue
+#     else:
+#         state = yahtzee.get_next_state(state,player,action)
+#         print("Throw: ",throw)
+#         print("action taken: ",action)
+#         print("state after action:\n",state)
+#         state = yahtzee.get_next_state(state,player,0,(1,1,1))
+#         player = (player+1)%len(state[1])        
+#         throw = 0
+#     print("\n")
+#     points, is_terminated = yahtzee.get_points_and_terminated(state)
+# print(state)
+# print(points)
         
