@@ -23,7 +23,7 @@ def straight(dice):
 
 options = np.array([
            lambda x: 20 if straight(x) else 0, #straight
-           lambda x: 35 if np.count_nonzero(x==x[0]) == 3 else 0,#yahtzee
+           lambda x: 30 if np.count_nonzero(x==x[0]) == 3 else 0,#yahtzee
            lambda x: np.sum(x)#chance
            ])
 
@@ -94,11 +94,19 @@ class Node:
                 best_ucb = ucb
                 
         return best_child
-    
-    def get_ucb(self,child):########################################
-        q_value = 1- ((child.value_sum / child.visit_count) + 1) / 2
-        return q_value + self.args['C'] * math.sqrt(math.log(self.visit_count) / child.visit_count)
 
+    # def get_ucb(self,child):########################################
+    #     q_value = 1- ((child.value_sum / child.visit_count) + 1) / 2
+    #     return q_value + self.args['C'] * math.sqrt(math.log(self.visit_count) / child.visit_count)
+
+    def get_ucb(self,child):
+        #q_value is normalised from [-1,1] 
+        if self.active_player==child.active_player:
+            q_value = ((child.value_sum / child.visit_count) + 1) / 2
+        else:#if the child has a different active player the q value is inverted because the score is from a different view
+            q_value = 1 - ((child.value_sum / child.visit_count) + 1) / 2
+        return q_value + self.args['C'] * math.sqrt(math.log(self.visit_count) / child.visit_count)  
+     
     def expand(self):
         if self.action_taken == 0:
             index = r.choice(np.ravel(np.argwhere([self.expandable_moves[i]!=-1 for i in range(len(self.expandable_moves))])))
@@ -236,7 +244,7 @@ class MCTS:
                 action_probs[index] += child_value.visit_count
                 x[index] += root.get_ucb(child_value)
         #print(action_probs)
-        print(x)
+        #print(x)
         print(np.argmax(x))
         action_probs /= np.sum(action_probs)
         #print(self.calc_depth(root))
@@ -332,7 +340,7 @@ def classic_greedy_bot(game,state,player,valid_actions):
 yahtzee = Yahtzee(2)
 player = 0
 state = yahtzee.get_initial_state()
-state[0] = np.array([1,6,6])
+state[0] = np.array([4,4,5])
 
 
 # state[1][0][0] = 0
@@ -361,19 +369,6 @@ for i in range(1):
         print(np.argsort(mcts_probs))
     else:
         action = random_bot_action(yahtzee,state,player,yahtzee.get_valid_moves(state,player,0))
-
-#Entdeckter Fehler:
-        # bei Würfelzuständen wo 2 gleich sind aber der Wert der einzelnen kleiner ist als die einer der gleichen gibt es fehler z.b. (4,1,4)
-        # neu würfelwahl ignoriert falls etwas schon eingetragen ist
-        #SIMULATION MUST ACKNOWLEDGE THE RETHROW DECISION
-        ##################################################
-        ##################################################
-        ##################################################
-        ##################################################
-#vielleicht beim Backtracking Punkteverhältniss berücksichtigen sodass ein Sieg mit 120 zu 40 Punkten besser darsteht als ein Sieg mit 120 zu 110 Punkten value = 1 + eigene/gesamt 
-        #Muss getestet werde; Vergangener fehler wegen Nulldivision deutet auf falsche simulation
-
-#fälle wie (4,4,6) werden noch falsch behandelt, aber erst bei hohen Zahlen Quersumme >~12
     
 # player = 0
 # throw = 0
