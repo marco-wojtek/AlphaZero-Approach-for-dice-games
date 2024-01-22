@@ -22,9 +22,9 @@ def straight(dice):
     return True if cnt_longest_seq == 3 else False 
 
 options = np.array([
-           lambda x: 20 if straight(x) else 0, #straight
-           lambda x: 30 if np.count_nonzero(x==x[0]) == 3 else 0,#yahtzee
-           lambda x: np.sum(x)#chance
+        lambda x: 20 if straight(x) else 0, #straight
+        lambda x: 30 if np.count_nonzero(x==x[0]) == 3 else 0,#yahtzee
+        lambda x: np.sum(x)#chance
            ])
 
 class Yahtzee:
@@ -44,9 +44,9 @@ class Yahtzee:
             state[1][player][action-1] = options[action-1](state[0])
         return state
 
-    def get_initial_state(self):
+    def get_initial_state(self,num_of_dice=5):
         state = np.array([
-            np.zeros(3),
+            np.zeros(num_of_dice),
             np.ones((self.player_num,len(options))) * -1
         ],dtype=object)
         return state
@@ -202,7 +202,7 @@ class Node:
     def backpropagate(self,value):
         #2-player simulation returns either 0 or 1 for the corresponding winner
         #a tie returns -1 meaning no winner; MCTS shouldn't strive for a tie #test 0 for tie
-        self.value_sum += (-1)**(value!=self.active_player) * (0<=value) #* (1+ (np.sum(self.state[1][self.active_player])/np.sum(self.state[1]))) #statt self.state, das ergebnis der simulation/ die Punkte der simulation
+        self.value_sum += (-1)**(value!=self.active_player) * (value>=0) #* (1+ (np.sum(self.state[1][self.active_player])/np.sum(self.state[1]))) #statt self.state, das ergebnis der simulation/ die Punkte der simulation
         self.visit_count += 1
          
         if self.parent is not None:
@@ -339,8 +339,8 @@ def classic_greedy_bot(game,state,player,valid_actions):
 
 yahtzee = Yahtzee(2)
 player = 0
-state = yahtzee.get_initial_state()
-state[0] = np.array([4,4,5])
+state = yahtzee.get_initial_state(3)
+state[0] = np.array([1,1,2])
 
 
 # state[1][0][0] = 0
@@ -356,13 +356,13 @@ for i in range(1):
     
     args = {
         'C': 1.41,
-        'num_searches': 100000
+        'num_searches': 10000
     }
     print("C:",args['C'])
     mcts = MCTS(yahtzee, args)
   
     if player == 0:
-        mcts_probs = mcts.search(state,player,0)
+        mcts_probs = mcts.search(state,player)
         print(mcts_probs)
         action = np.argmax(mcts_probs)
         print(action)
@@ -374,7 +374,7 @@ for i in range(1):
 # throw = 0
 # action = -1
 # yahtzee = Yahtzee(2)
-# state = yahtzee.get_initial_state()
+# state = yahtzee.get_initial_state(3)
 # state = yahtzee.get_next_state(state,player,0,(1,1,1))
 # args = {
 #     'C': 3.5,

@@ -5,6 +5,7 @@ import time
 import itertools as iter
 from tqdm import tqdm
 import copy
+import math
 
 class machikoro:
     
@@ -279,3 +280,60 @@ print(np.average(round_count,axis=0))
 #choose 1 or 0 of 15 cards OR 1 or 0 of big projects to buy/build
 #end turn
  
+class Node:
+
+    def __init__(self, game, args, state, active_player, parent=None, action_taken=None, ischance = False):
+        self.game = game
+        self.state = state
+        self.args = args
+        self.active_player = active_player
+        self.parent = parent
+        self.children = {}
+
+        self.action_taken = action_taken
+        self.ischance = ischance
+
+        self.expandable_moves = None
+
+        self.visit_count = 0
+        self.value_sum = 0
+
+    def is_fully_expanded(self):
+        if self.ischance:
+            return len(self.expandable_moves[0]) == len(self.children) and len(self.children) > 0
+        
+        return len(self.expandable_moves) == len(self.children) and len(self.children) > 0
+    
+    def select(self):
+        if self.ischance:
+            dsp = self.expandable_moves[1]
+            outcome = r.choices(list(dsp.keys()),list(dsp.values()))[0]
+            return self.children[outcome]
+        
+        best_child = None
+        best_ucb = -np.inf
+        
+        for child in self.children.values():
+            ucb = self.get_ucb(child)
+            if ucb > best_ucb:
+                best_child = child
+                best_ucb = ucb
+                
+        return best_child
+    
+    def get_ucb(self,child):
+        #q_value is normalised from [-1,1] 
+        if self.active_player==child.active_player:
+            q_value = ((child.value_sum / child.visit_count) + 1) / 2
+        else:#if the child has a different active player the q value is inverted because the score is from a different view
+            q_value = 1 - ((child.value_sum / child.visit_count) + 1) / 2
+        return q_value + self.args['C'] * math.sqrt(math.log(self.visit_count) / child.visit_count)
+    
+    def expand(self):
+        return
+    
+    def backpropagate(self,value):
+        self.value_sum += (-1)**(value!=self.active_player) * (value>=0) 
+         
+        if self.parent is not None:
+            self.parent.backpropagate(value) 

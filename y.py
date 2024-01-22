@@ -217,3 +217,41 @@ def classic_greedy_bot(game,state,player,valid_actions):#Greedy bot which simula
 # print(np.min(x,axis=0))
 # print(np.average(x,axis=0))
 # print(np.median(x,axis=0))
+
+all_possible_dice_states = list(iter.product(range(1,7),repeat=5))
+sorted_possible_dice_states = list(iter.combinations_with_replacement(range(1,7),r=5))
+def calc_dice_state_probabilities(all_possible_dice_states):
+    dice_state_probabilities = {}
+    for d_state in all_possible_dice_states:
+        sorted_d_state = np.sort(d_state)
+        index = ''.join(str(x) for x in np.sort(sorted_d_state))
+        if index not in dice_state_probabilities:
+            dice_state_probabilities[index] = 0
+        dice_state_probabilities[index] += 1
+    for d in dice_state_probabilities:
+        dice_state_probabilities[d] = dice_state_probabilities[d]/len(all_possible_dice_states)
+    return dice_state_probabilities
+
+def calc_sorted_possible_dice_states(current_dice, changing_dice):
+    if changing_dice is None or np.all(changing_dice):
+        return sorted_possible_dice_states, calc_dice_state_probabilities(all_possible_dice_states)
+
+    sorted_states = list()
+    state_list = list()
+    for elem in all_possible_dice_states:
+        is_similar = True
+        for i in range(len(current_dice)):
+            # if not changing_dice[i] and elem.count(current_dice[i])<np.count_nonzero(np.ma.masked_array(current_dice,mask=changing_dice)==current_dice[i]):
+            #     is_similar = False
+            #     break
+
+            if changing_dice[i] == 0 and  current_dice[i] != elem[i]:
+                is_similar = False
+                break
+
+        if is_similar:
+            state_list.append(elem)
+            if tuple(sorted(elem)) not in sorted_states:
+                sorted_states.append(tuple(sorted(elem))) 
+
+    return sorted_states,calc_dice_state_probabilities(state_list)
