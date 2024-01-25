@@ -82,39 +82,63 @@ class Quixx:
         #filter out the last element of the row if not 5 were marked before
         closed = np.array([11,22,33,44]) # The closing row actions
         for n in range(len(closed)):
-            cnt = np.count_nonzero(state[player+1][n][np.where(state[player+1][n]==1)]) #count available number of ones
+            cnt = len(np.where(state[player+1][n]==1)[0]) 
             if cnt < 5:
                 index = np.argwhere(options==closed[n])
                 options = np.delete(options,index)
+            
         return np.unique(options)
 
     #check for >=2 closed rows for each player, a row is closed if the last number in a row is marked 
     def get_points_and_terminated(self,state):
-        num_players = len(state)-2
+        num_players = len(state[-1])
         terminated = False
         closed_rows = [False,False,False,False]
         for j in range(1,len(state)-1):
             arr = [state[j][i][-1]==1 for i in range(4)]
-            closed_rows = closed_rows or arr
-            if np.sum(arr)>=2 or np.any([state[-1][k]==4 for k in range(num_players)]):
+            closed_rows = [closed_rows[i] or arr[i] for i in range(len(arr))]
+            if np.sum(closed_rows)>=2 or np.any([state[-1][k]==4 for k in range(num_players)]):
                 terminated = True
-        
+
         #for every closed row mark all other players numbers of that row with 0
         for j in range(1,len(state)-1):
             for i in range(4):
                 if closed_rows[i]:
-                    marked_num = np.argwhere(state[j][i]==1)
-                    last_marked = marked_num[-1][0] if len(marked_num) >0 else 0
-                    state[j][i][last_marked:] = 0
+                    marked_num = np.where(state[j][i]==1)[0]
+                    last_marked = marked_num[-1] if len(marked_num) >0 else 0
+                    if last_marked != len(state[j][i])-1: #if a player has marked the last number in the row it means there cannot be marked anything else in the same row
+                        state[j][i][last_marked:] = 0
 
         points = np.zeros(num_players)
         for n in range(num_players):
             for m in range(4):
-                x = state[n+1][m][-1] == 1
-                points[n] += self.point_space[np.count_nonzero(state[n+1][m][np.where(state[n+1][m]==1)])+x]
+                has_closed = state[n+1][m][-1] == 1
+                points[n] += self.point_space[np.count_nonzero(state[n+1][m][np.where(state[n+1][m]==1)])+has_closed]
             points[n] -= 5* state[-1][n]
 
         return points, terminated
+    
+    def get_encoded_state(self,state):
+        encoded = np.array([])
+        for num in state[0]:
+            #print(num," encoded as: ",get_one_hot(num,6))
+            encoded = np.append(encoded,get_one_hot(num,6))
+        for i in range(1,len(state)-1):
+            for arr in state[i]:
+                #print(arr," encoded as: ",arr==1)
+                encoded = np.append(encoded,arr==1)
+                #print(arr," encoded as: ",arr>1)
+                encoded = np.append(encoded,arr>1)
+        for err in state[-1]:
+            #print(err," encoded as: ",get_one_hot(err+1,5))
+            encoded = np.append(encoded,get_one_hot(err+1,5))
+                
+        return encoded
+
+def get_one_hot(num,size):
+    one_hot = np.zeros(size)
+    one_hot[int(size-num)] = 1
+    return one_hot
 
 def dice():
     return random.randint(1,7,size=(6))
@@ -193,26 +217,28 @@ class Node:
         self.children = {}
 
         self.action_taken = action_taken
-        self.active_player_action = active_player_action
+        self.active_player_action = active_player_action#parses the active players action through the white dice turn
         self.ischance = ischance
 
         self.iswhiteturn = iswhiteturn
-        self.expandable_moves = game.get_valid_moves(self.state,self.active_player,self.iswhiteturn)
+        self.expandable_moves = game.get_valid_moves(self.state,self.active_player,self.iswhiteturn) if not self.ischance else all_possible_dice_states
 
         self.visit_count = 0
         self.value_sum = 0
 
     def is_fully_expanded(self):
         if self.ischance:
-            return len(self.expandable_moves[0]) == len(self.children) and len(self.children) > 0
+            return len(self.expandable_moves) == len(self.children) and len(self.children) > 0
         
         return len(self.expandable_moves) == len(self.children) and len(self.children) > 0
-    
+
     def select(self):
         if self.ischance:
-            dsp = self.expandable_moves[1]
-            outcome = r.choices(list(dsp.keys()),list(dsp.values()))[0]
-            return self.children[outcome]
+            # dsp = self.expandable_moves[1]
+            # outcome = r.choices(list(dsp.keys()),list(dsp.values()))[0]
+            outcome = r.choice(self.expandable_moves)
+            index = ''.join(str(x) for x in outcome)
+            return self.children[index]
         
         best_child = None
         best_ucb = -np.inf
@@ -228,6 +254,7 @@ class Node:
     def get_ucb(self,child):
         #q_value is normalised from [-1,1] 
         if self.active_player==child.active_player:
+            raise Exception("code not reachable")
             q_value = ((child.value_sum / child.visit_count) + 1) / 2
         else:#if the child has a different active player the q value is inverted because the score is from a different view
             q_value = 1 - ((child.value_sum / child.visit_count) + 1) / 2
@@ -237,18 +264,19 @@ class Node:
         #expansion for chance nodes
         #expansion for white dice and coloured dice
         if self.ischance:
-            for dices in self.expandable_moves[0]:
+            for dices in self.expandable_moves:
                 child_state = copy.deepcopy(self.state)
                 child_state[0] = np.asarray(dices)
-                child = Node(self.game,self.args,self.state,(self.active_player+1)%len(self.state[2]),self,iswhiteturn=True)
-                self.children[dices] = child
+                child = Node(self.game,self.args,self.state,(self.active_player+1)%len(self.state[-1]),self,iswhiteturn=True)
+                index = ''.join(str(x) for x in dices)
+                self.children[index] = child
         elif self.iswhiteturn:
             action = self.expandable_moves[r.choice(np.where(self.expandable_moves!=-1)[0])]
             child_state = copy.deepcopy(self.state)
-            if self.parent is None or self.parent.ischance:#players own white turn
-                child = Node(self.game,self.args,self.state,(self.active_player+1)%len(self.state[2]),self,action,action,False,True)
+            if self.action_taken is None:#players own white turn
+                child = Node(self.game,self.args,self.state,(self.active_player+1)%len(self.state[-1]),self,action,action,False,True)
             else:#own action doesn't matter so the parents action is parsed through
-                child = Node(self.game,self.args,self.state,(self.active_player+1)%len(self.state[2]),self,action,self.action,False,False)
+                child = Node(self.game,self.args,self.state,(self.active_player+1)%len(self.state[-1]),self,action,self.active_player_action,False,False)
             self.children[action] = child
             self.expandable_moves[np.argwhere(self.expandable_moves==action)[0][0]]  = -1
         else:
@@ -256,73 +284,161 @@ class Node:
             child_state = copy.deepcopy(self.state)
             #add error if no action other than 0 is taken
             child_state[2][self.active_player] += ((self.active_player_action + action)==0)
-            child = Node(self.game,self.args,self.state,(self.active_player+1)%len(self.state[2]),self,action,None,True,False)
+            child = Node(self.game,self.args,self.state,(self.active_player+1)%len(self.state[-1]),self,action,None,True,False)
             child.expand()#add chance outcomes
             self.children[action] = child
             self.expandable_moves[np.argwhere(self.expandable_moves==action)[0][0]]  = -1
 
         return child
     
-    def simulate(self): ## RETHINK FOR EFFICENCY
+    def simulate(self): ## RETHINK FOR EFFICENCY #endless loop
+        assert self.parent.ischance == False
         points, is_terminal = self.game.get_points_and_terminated(self.state)
         value = np.argmax(points) if np.count_nonzero(points==np.max(points))==1 else -1
         if is_terminal:
             return value
-        
-        rollout_state = copy.deepcopy(state)
+
+        rollout_state = copy.deepcopy(self.state)
+        white_turn = 0
         player = self.active_player
+        action_memory = None
+        #block for the action decided in expansion
+        #2 players: 1 rotation means P0 white dice -> P1 white dice -> P0 coloured dice
+        #
+        if self.parent.iswhiteturn and self.parent.action_taken is None:
+            rollout_state = self.game.get_next_state(rollout_state,player,self.action_taken)
+            white_turn += 1
+            player = (player+1)%len(rollout_state[-1])
+            action_memory = self.action_taken
+        elif self.parent.iswhiteturn:
+            rollout_state = self.game.get_next_state(rollout_state,player,self.action_taken)
+            white_turn = 2
+            player = (player+1)%len(rollout_state[-1])
+            action_memory = self.active_player_action
+        else:
+            rollout_state = self.game.get_next_state(rollout_state,player,self.action_taken)
+            player = (player+1)%len(rollout_state[-1])
+            rollout_state[0] = dice()
 
-        #do one rotation with specific chosen action
-        rollout_state = self.game.get_next_state(rollout_state,player,self.action_taken)
-        player = (player+1)%len(rollout_state[2])
-        points, is_terminal = self.game.get_points_and_terminated(self.state)
-        value = np.argmax(points) if np.count_nonzero(points==np.max(points))==1 else -1
-        if is_terminal:
-            return value
-        if self.parent != None and self.parent.ischance and self.iswhiteturn:       
-            v = self.game.get_valid_moves(rollout_state,player,True)
-            action = r.choice(v)
-            rollout_state = self.game.get_next_state(rollout_state,player,action)
-            player = (player+1)%len(rollout_state[2])
-            points, is_terminal = self.game.get_points_and_terminated(self.state)
-            value = np.argmax(points) if np.count_nonzero(points==np.max(points))==1 else -1
-            if is_terminal:
-                return value
-            v = self.game.get_valid_moves(rollout_state,player)
-            action = r.choice(v)
-            rollout_state = self.game.get_next_state(rollout_state,player,action)
-            player = (player+1)%len(rollout_state[2])
-        elif self.parent != None and self.parent.iswhiteturn and self.iswhiteturn:
-            v = self.game.get_valid_moves(rollout_state,player)
-            action = r.choice(v)
-            rollout_state = self.game.get_next_state(rollout_state,player,action)
-            player = (player+1)%len(rollout_state[2])
-
-        points, is_terminal = self.game.get_points_and_terminated(self.state)
-        value = np.argmax(points) if np.count_nonzero(points==np.max(points))==1 else -1
-        if is_terminal:
-            return value
+        points, is_terminal = self.game.get_points_and_terminated(rollout_state)
+        #
         
-        white_cnt = 0
         while not is_terminal:
-            v = self.game.get_valid_moves(rollout_state,player,white_cnt<2)
+            iswhiteturn = white_turn<len(rollout_state[-1])
+            v = self.game.get_valid_moves(rollout_state,player,iswhiteturn)
             action = r.choice(v)
-            rollout_state = self.game.get_next_state(rollout_state,player,action)
-            player = (player+1)%len(rollout_state[2])
-            if white_cnt == 2:
-                white_cnt = 0
-            points, is_terminal = self.game.get_points_and_terminated(self.state)
-        value = np.argmax(points) if np.count_nonzero(points==np.max(points))==1 else -1
+            if iswhiteturn:
+                rollout_state = self.game.get_next_state(rollout_state,player,action)
+                if white_turn == 0 and action_memory is None:
+                    action_memory = action
+                white_turn += 1
+            else:
+                if (action + action_memory) == 0:
+                    action = -1
+                rollout_state = self.game.get_next_state(rollout_state,player,action)
+                white_turn = 0
+                action_memory = None
+                rollout_state[0] = dice() #new dice after turn
+            player = (player+1)%len(rollout_state[-1])
+
+            points, is_terminal = self.game.get_points_and_terminated(rollout_state)
+
+        value = np.argmax(points) if np.count_nonzero(points==np.max(points))==1 else -1 
+
         return value
     
     def backpropagate(self,value):
         self.value_sum += (-1)**(value!=self.active_player) * (value>=0) 
+        self.visit_count += 1
          
         if self.parent is not None:
             self.parent.backpropagate(value) 
 
+
+class MCTS:
+    def __init__(self, game, args):
+        self.game = game
+        self.args = args
+    
+    #returns the probabilities for the possible actions
+    def search(self,state,player,action_taken=None,active_player_action=None,iswhiteturn=True):
+        root = Node(self.game,self.args,state,player,None,action_taken,active_player_action,False,iswhiteturn)
+        var = tqdm(range(self.args['num_searches']))
+
+        for search in var:
+            node = root
+            
+            while node.is_fully_expanded():
+                node = node.select()
+            
+            points, is_terminal = self.game.get_points_and_terminated(node.state)
+            value = np.argmax(points) if np.count_nonzero(points==np.max(points))==1 else -1
+
+            if not is_terminal:
+                node = node.expand()
+                value = node.simulate()
+            
+            node.backpropagate(value)
+
+        action_probs = np.zeros(len(np.ravel(self.game.action_space))+1)
+
+        for child_key, child_value in root.children.items():
+            action_probs[child_key] += child_value.visit_count
+        #print(x)
+        action_probs /= np.sum(action_probs)
+        print(self.calc_depth(root))
+        return action_probs
+
+    def calc_depth(self,root):
+        maxi = 0	
+        if len(root.children) == 0:
+            return 1
+        for key,child in root.children.items():
+            val = self.calc_depth(child)
+            if  val > maxi:
+                maxi = val 
+        return maxi+1
+    
+all_possible_dice_states = list(iter.product(range(1,7),repeat=6))
+
 quixx = Quixx()
 state = quixx.get_initial_state(2)
-state[0] = dice()
+player = 0
+state[0] = [3,4,1,2,3,4]
+white_turn = True
 print(state)
-print(quixx.get_valid_moves(state,0,False))
+print(quixx.action_space)
+print(quixx.get_valid_moves(state,0,white_turn))
+for i in range(1):
+    
+    args = {
+        'C': 0.41,
+        'num_searches': 10000
+    }
+    print("C:",args['C'])
+    mcts = MCTS(quixx, args)
+  
+    if player == 0:
+        mcts_probs = mcts.search(state,player,0,0,white_turn)
+        print(mcts_probs)
+        action = np.argmax(mcts_probs)
+        print(action)
+        print(np.argsort(mcts_probs))
+# state = quixx.get_next_state(state,0,4)
+# state = quixx.get_next_state(state,0,5)
+# state = quixx.get_next_state(state,0,6)
+# state = quixx.get_next_state(state,0,7)
+# state = quixx.get_next_state(state,0,8)
+# state = quixx.get_next_state(state,0,9)
+# state = quixx.get_next_state(state,0,11)
+# state = quixx.get_next_state(state,1,34)
+# state = quixx.get_next_state(state,1,35)
+# state = quixx.get_next_state(state,1,36)
+# state = quixx.get_next_state(state,1,37)
+# state = quixx.get_next_state(state,1,38)
+# state = quixx.get_next_state(state,1,44)
+# print(quixx.get_points_and_terminated(state))
+# print(quixx.action_space)
+# print(state)
+# encoded = quixx.get_encoded_state(state)
+# print(encoded)

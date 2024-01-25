@@ -245,7 +245,6 @@ class MCTS:
                 x[index] += root.get_ucb(child_value)
         #print(action_probs)
         #print(x)
-        print(np.argmax(x))
         action_probs /= np.sum(action_probs)
         #print(self.calc_depth(root))
         return action_probs
@@ -340,15 +339,8 @@ def classic_greedy_bot(game,state,player,valid_actions):
 yahtzee = Yahtzee(2)
 player = 0
 state = yahtzee.get_initial_state(3)
-state[0] = np.array([1,1,2])
+state[0] = np.array([1,2,5])
 
-
-# state[1][0][0] = 0
-# state[1][1][0] = 0
-# state[1][0][1] = 0
-# state[1][1][1] = 0
-# state[1][0][2] = 0
-# state[1][1][2] = 0
 print(all_permutations)
 
 print(state)
@@ -356,7 +348,7 @@ for i in range(1):
     
     args = {
         'C': 1.41,
-        'num_searches': 10000
+        'num_searches': 100000
     }
     print("C:",args['C'])
     mcts = MCTS(yahtzee, args)

@@ -7,7 +7,7 @@ from tqdm import tqdm
 import copy
 import math
 
-class machikoro:
+class Machikoro:
     
     def __init__(self):
         self.card_costs = np.array([1,1,1,2,2,3,6,7,8,5,3,6,3,3,2,4,10,16,22])#last 4 are upgrade costs
@@ -99,7 +99,7 @@ class machikoro:
                 if current_player == player:
                     break
 
-    def get_valid_actions(self,state,player,can_steal = True):
+    def get_valid_moves(self,state,player,can_steal = True):
         #first check which cards are available, afterwards filter the too expensive ones #regard upgrade actions stealing 5 coins or swapping cards which are handled before the card option
         num_coins = state[0][player]
         available_cards = (state[3]>0)
@@ -126,11 +126,11 @@ class machikoro:
             available_cards = np.append(available_cards,steal_index[:len(state[0])-1])
         return available_cards.astype(int)
     
-    #Checks wether any player has all upgrades and resturns who has all upgrades is_terminated(state)[1] contains the value for if the game has ended
-    #unlocked all upgrades used to determine the winner
     def is_terminated(self,state):
         unlocked_all_upgrades = [np.all(state[2][i]) for i in range(len(state[2]))]
-        return unlocked_all_upgrades,np.any(unlocked_all_upgrades)
+        terminal = np.any(unlocked_all_upgrades) 
+        winner = np.argmax(unlocked_all_upgrades) if terminal else -1
+        return terminal, winner
 
     def get_expected_reward(self,state,player,two_dice=0):
         xR = np.zeros(len(state[0]))
@@ -170,8 +170,8 @@ dice_probs = {
             12: 1/36,
         } 
 #throws always two dice
-def dice():
-    return random.randint(1,7,size=(2))
+def dice(size):
+    return random.randint(1,7,size=(size))
 
 def random_bot_action(valid_actions):
     return r.choice(valid_actions)
@@ -233,11 +233,11 @@ def gameloop(iterations,playerIds):
                     dice_throw = dice()[:j]
             ###################
             Machikoro.distribution(state,player,dice_throw)
-            v = Machikoro.get_valid_actions(state,player)
+            v = Machikoro.get_valid_moves(state,player)
             act = expecting_greedy_bot_action(Machikoro,state,player,v) if playerIds[player]==2 else greedy_bot_action(v) if playerIds[player]==1 else random_bot_action(v)
             state = Machikoro.get_next_state(state,player,act)
             if act in np.arange(20,23):
-                v = Machikoro.get_valid_actions(state,player,False)
+                v = Machikoro.get_valid_moves(state,player,False)
                 act = expecting_greedy_bot_action(Machikoro,state,player,v) if playerIds[player]==2 else greedy_bot_action(v) if playerIds[player]==1 else random_bot_action(v)
                 state = Machikoro.get_next_state(state,player,act)
             #UPGRADE 3 HANDLING
@@ -251,24 +251,26 @@ def gameloop(iterations,playerIds):
         round_count = np.append(round_count,round)
     return x[1:],round_count[1:]
 
-# Machikoro = machikoro()
-# state = Machikoro.get_initial_state(2)
-# print(state)
-# state[0][0] = 100
-# print(state)
-# v = Machikoro.get_valid_actions(state,0)
+machikoro = Machikoro()
+state = machikoro.get_initial_state(2)
+state[0][0] = 100
+state[1][0] = np.ones(15)
+print(state)
+print(machikoro.get_valid_moves(state,0))
+print(machikoro.is_terminated(state))
+# v = Machikoro.get_valid_moves(state,0)
 # print(v)
 # print(expecting_greedy_bot_action(Machikoro,state,0,v))
-st = time.process_time()
-x,round_count = gameloop(1000,[2,2])
-et = time.process_time()
-res = et - st
-print('CPU Execution time:', res, 'seconds')
-print(np.average(x,axis=0))
-print(np.median(x,axis=0))
-print(np.max(round_count,axis=0))
-print(np.min(round_count,axis=0))
-print(np.average(round_count,axis=0))
+# st = time.process_time()
+# x,round_count = gameloop(1000,[2,2])
+# et = time.process_time()
+# res = et - st
+# print('CPU Execution time:', res, 'seconds')
+# print(np.average(x,axis=0))
+# print(np.median(x,axis=0))
+# print(np.max(round_count,axis=0))
+# print(np.min(round_count,axis=0))
+# print(np.average(round_count,axis=0))
 
 #late game turn iteration
 #select one or two dice
@@ -282,7 +284,7 @@ print(np.average(round_count,axis=0))
  
 class Node:
 
-    def __init__(self, game, args, state, active_player, parent=None, action_taken=None, ischance = False):
+    def __init__(self, game, args, state, active_player, parent=None, action_taken=None, ischance = False, can_steal=True, can_rethrow = True):
         self.game = game
         self.state = state
         self.args = args
@@ -293,7 +295,9 @@ class Node:
         self.action_taken = action_taken
         self.ischance = ischance
 
-        self.expandable_moves = None
+        rethrow = np.array([-1]) if self.state[2][self.active_player][3] and can_rethrow else np.array([])
+
+        self.expandable_moves = np.append(rethrow,game.get_valid_moves(state,active_player,can_steal)) #add chance outcomes
 
         self.visit_count = 0
         self.value_sum = 0
@@ -332,8 +336,48 @@ class Node:
     def expand(self):
         return
     
+    def simulate(self):
+        rollout_state = copy.deepcopy(self.state)
+        player = self.active_player
+        action = self.action_taken
+        dice_choice = None
+        #if the players do nothing for 6 turns concecuatively the game is terminated without winner
+        action_cnt = 0
+        #action block for expansion decision
+        #
+        #rest of the simulation
+        #loop
+        is_terminal, winner = self.game.is_terminated(rollout_state)
+        while not is_terminal:
+            #choose number of dice
+            d = dice(dice_choice) if dice_choice is not None else (dice(1) if not rollout_state[2][player][0] else dice(r.choice([1,2])))
+            #choose to rethrow will not be simulated due to random playout making it unnecissary
+            #distribution
+            self.game.distribution(rollout_state,player,d)
+            #buy/skip action
+            v = self.game.get_valid_moves(rollout_state,player,action not in np.arange(20,22))
+            action = r.choice(v)
+            rollout_state = self.game.get_next_state(rollout_state,player,action)
+            #change players turn, unless doublets
+            if not rollout_state[2][player][2]:
+                player = (player+1)%len(rollout_state[0])
+                dice_choice = None
+            else:
+                dice_choice = len(d)
+
+            is_terminal, winner = self.game.is_terminated(rollout_state) 
+            if action == 0:
+                action_cnt += 1
+                if action_cnt == 6:
+                    break
+            else:
+                action_cnt = 0
+        return winner
+    
     def backpropagate(self,value):
         self.value_sum += (-1)**(value!=self.active_player) * (value>=0) 
+
+        self.visit_count += 1
          
         if self.parent is not None:
             self.parent.backpropagate(value) 
