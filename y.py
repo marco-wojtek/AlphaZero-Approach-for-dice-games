@@ -108,19 +108,32 @@ class Yahtzee: #sorting the dice arrays changes the number of possible dice stat
     def get_points_and_terminated(self,state):
         points = np.zeros(len(state[1]))
         for i in range(len(state[1])):
-            x = 35 if np.sum(state[1][i][:6][state[1][i][:6]!=-1]) >= 63 else 0 #Bonus if the sum of the first 6 is greater than 63
-            points[i] = np.sum(state[1][i][state[1][i]!=-1])
+            bonus = 35 if np.sum(state[1][i][:6][state[1][i][:6]!=-1]) >= 63 else 0 #Bonus if the sum of the first 6 is greater than 63
+            points[i] = np.sum(state[1][i][state[1][i]!=-1]) + bonus
         if np.any(state[1]==-1):
             return points,False
         return points, True
     
     def get_encoded_state(self,state):
-        return
+        encoded = np.array([])
+        for num in state[0]:
+            #print(num," encoded as: ",get_one_hot(num,6))
+            encoded = np.append(encoded,get_one_hot(num,6))
+        for arr in state[1]:
+            encoded = np.append(encoded,arr==-1)
+        #append curent points binary point with 9 bits
+        points, t = self.get_points_and_terminated(state)
+        for i in range(len(state[1])):
+            encoded = np.append(encoded,get_binary(points[i]))
+        return encoded
 
-def get_one_hot(num):
-    one_hot = np.zeros(6)
-    one_hot[len(one_hot)-num] = 1
+def get_one_hot(num,size):
+    one_hot = np.zeros(size)
+    one_hot[int(size-num)] = 1
     return one_hot
+
+def get_binary(num):
+    return np.array(list(np.binary_repr(int(num),width=9))).astype(int)
 
 all_permutations = list(iter.product(range(0,2),repeat=5))[1:]
 
@@ -492,15 +505,16 @@ class MCTS:
 yahtzee = Yahtzee(2)
 player = 0
 state = yahtzee.get_initial_state()
-state[0] = np.array([1,3,3,4,5])
+state[0] = np.array([1,1,1,1,5])
 
 print(all_permutations)
-
 print(state)
+encoded = yahtzee.get_encoded_state(state)
+print(encoded)
 for i in range(1):
     
     args = {
-        'C': 2.41,
+        'C': 1.41,
         'num_searches': 10000
     }
     print("C:",args['C'])

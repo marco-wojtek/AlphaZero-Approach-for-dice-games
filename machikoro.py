@@ -86,12 +86,12 @@ class Machikoro:
                 state[0][current_player] += state[1][current_player][10] * (state[1][current_player][5]+state[1][current_player][11]) * 3
             else:
                 state[0][current_player] += state[1][current_player][14] * (state[1][current_player][0]+state[1][current_player][13]) * 2
-        if dice_sum == 6:
+        if dice_sum == 6:#buffed take two
             current_player = (current_player+1)%len(state[0])
             while True and state[1][player][6]>0:
-                if state[0][current_player] >= 2:
-                    state[0][current_player] -= 2
-                    state[0][player] += 2
+                if state[0][current_player] >= 3:
+                    state[0][current_player] -= 3
+                    state[0][player] += 3
                 else:
                     state[0][player] += state[0][current_player]
                     state[0][current_player] = 0
@@ -99,7 +99,7 @@ class Machikoro:
                 if current_player == player:
                     break
 
-    def get_valid_moves(self,state,player,can_steal = True):
+    def get_valid_moves(self,state,player,can_steal = False):#active Stealing disabled for 2 players bc coins are always taken from opponent
         #first check which cards are available, afterwards filter the too expensive ones #regard upgrade actions stealing 5 coins or swapping cards which are handled before the card option
         num_coins = state[0][player]
         available_cards = (state[3]>0)
@@ -109,7 +109,7 @@ class Machikoro:
             else:
                 available_cards[n] = (state[1][player][n] == 0) and (num_coins >= self.card_costs[n])
                 #TRADING DISABLED bc of too high complexity
-                if n == 8:
+                if n == 8 or n == 7:
                     available_cards[n] = False
 
         #available_cards contains all buyable cards // all buy card actions + action 0 ~ do nothing and actions 16,17,18,19 for upgrade option
@@ -284,7 +284,7 @@ print(machikoro.is_terminated(state))
  
 class Node:
 
-    def __init__(self, game, args, state, active_player, parent=None, action_taken=None, ischance = False, can_steal=True, can_rethrow = True):
+    def __init__(self, game, args, state, active_player, parent=None, action_taken=None, ischance = False, isdice_node = False, isrethrow_node=False, num_of_dice = 0):
         self.game = game
         self.state = state
         self.args = args
@@ -294,10 +294,9 @@ class Node:
 
         self.action_taken = action_taken
         self.ischance = ischance
-
-        rethrow = np.array([-1]) if self.state[2][self.active_player][3] and can_rethrow else np.array([])
-
-        self.expandable_moves = np.append(rethrow,game.get_valid_moves(state,active_player,can_steal)) #add chance outcomes
+        self.num_of_dice = num_of_dice
+        dice_node = np.array([1,2]) if self.state[2][self.action_taken][0] else np.array([1])
+        self.expandable_moves = calc_dice_state_probabilities(self.num_of_dice) if self.ischance else dice_node if isdice_node else np.array([0,1]) if isrethrow_node else game.get_valid_moves(state,active_player)
 
         self.visit_count = 0
         self.value_sum = 0
@@ -334,7 +333,35 @@ class Node:
         return q_value + self.args['C'] * math.sqrt(math.log(self.visit_count) / child.visit_count)
     
     def expand(self):
-        return
+        if self.ischance:
+            for dices in self.expandable_moves.keys():
+                child_state = copy.deepcopy(child_state)
+                can_rethrow = self.state[2][self.active_player][3] and (self.parent is None or self.parent.isrethrow_node == False)
+                child = Node(self.game,self.args,child_state,self.active_player,self,None,False,False,can_rethrow,len(dices))
+                self.children[dices] = child
+        elif self.isrethrow_node:
+            index = r.choice(np.where(self.expandable_moves!=-1)[0])
+            rethrow = self.expandable_moves[index]
+            child_state = copy.deepcopy(self.state)
+            child = Node(self.game, self.args,child_state,self.active_player,self,rethrow,True, False, False, self.num_of_dice)
+            self.children[rethrow] = child
+            self.expandable_moves[index] = -1
+        elif self.isdice_node:
+            index = r.choice(np.where(self.expandable_moves!=-1)[0])
+            num_of_dice = self.expandable_moves[index]
+            child_state = copy.deepcopy(self.state)
+            child = Node(self.game,self.args,child_state,self.active_player,self,None,True,False,False,num_of_dice)
+            self.children[num_of_dice] = child
+            self.expandable_moves[index] = -1
+        else:
+            index = r.choice(np.where(self.expandable_moves!=-1)[0])
+            action = self.expandable_moves[index]
+            child_state = self.game.get_next_state(copy.deepcopy(self.state),self.active_player,action)
+            child = Node(self.game,self.args,child_state,(self.active_player+1)%len(child_state[0]),self,action,False,True,False,0)
+            self.children[action] = child
+            self.expandable_moves[index] = -1
+
+        return child
     
     def simulate(self):
         rollout_state = copy.deepcopy(self.state)
@@ -381,3 +408,21 @@ class Node:
          
         if self.parent is not None:
             self.parent.backpropagate(value) 
+
+def calc_dice_state_probabilities(num_of_dice):
+    all_possible_dice_states = list(iter.product(range(1,7),repeat=num_of_dice))
+    dice_state_probabilities = {}
+    for d_state in all_possible_dice_states:
+        sorted_d_state = np.sort(d_state)
+        index = ''.join(str(x) for x in np.sort(sorted_d_state))
+        if index not in dice_state_probabilities:
+            dice_state_probabilities[index] = 0
+        dice_state_probabilities[index] += 1
+    for d in dice_state_probabilities:
+        dice_state_probabilities[d] = dice_state_probabilities[d]/len(all_possible_dice_states)
+    return dice_state_probabilities
+arr = np.array([-1,2])
+print(np.where(arr!=-1))
+print(r.choice(np.where(arr!=-1)[0]))
+print(calc_dice_state_probabilities(1).keys())
+#print(np.array(list(list(calc_dice_state_probabilities(2).keys())[0])).astype(int))
