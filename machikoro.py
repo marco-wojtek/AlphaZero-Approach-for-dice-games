@@ -15,10 +15,13 @@ class Machikoro:
     def get_initial_state(self,num_players):
         player_bank = np.zeros(num_players) + 3
         player_cards = np.zeros((num_players,15))
-        player_cards[:,0:2] = 1
+        player_cards[:,0] = 1
+        player_cards[:,2] = 1
         player_upgrades = np.zeros((num_players,4))
         game_board = np.zeros(15) + 6
-        game_board[6:9] = 4
+        game_board[6:9] = num_players
+        #disable trading and stealing 5
+        game_board[7:9] = 0
         return np.array([player_bank,player_cards,player_upgrades,game_board],dtype=object)
     
     def get_next_state(self,state,player,action):#action is the choice if and which card is to buy #action 0 is always = "do nothing" 
@@ -130,7 +133,7 @@ class Machikoro:
         unlocked_all_upgrades = [np.all(state[2][i]) for i in range(len(state[2]))]
         terminal = np.any(unlocked_all_upgrades) 
         winner = np.argmax(unlocked_all_upgrades) if terminal else -1
-        return terminal, winner
+        return winner, terminal
 
     def get_expected_reward(self,state,player,two_dice=0):
         xR = np.zeros(len(state[0]))
@@ -155,6 +158,18 @@ class Machikoro:
                 reward = (reward + self.get_expected_reward(state,i,1))/2
             xR = xR + reward
         return xR
+    
+    def get_encoded_state(self,state):
+        encoded = np.array([])
+        for i in range(len(state[0])):
+            encoded = np.append(encoded,get_binary(state[0][i]))
+        for i in range(len(state[0])):
+            encoded = np.append(encoded,state[1][i]>0)
+            encoded = np.append(encoded,state[2][i])
+        return np.append(encoded,state[3]>0)
+
+def get_binary(num):
+    return np.array(list(np.binary_repr(int(num),width=6))).astype(int)           
 
 dice_probs = {
             2 : 1/36,
@@ -251,13 +266,6 @@ def gameloop(iterations,playerIds):
         round_count = np.append(round_count,round)
     return x[1:],round_count[1:]
 
-machikoro = Machikoro()
-state = machikoro.get_initial_state(2)
-state[0][0] = 100
-state[1][0] = np.ones(15)
-print(state)
-print(machikoro.get_valid_moves(state,0))
-print(machikoro.is_terminated(state))
 # v = Machikoro.get_valid_moves(state,0)
 # print(v)
 # print(expecting_greedy_bot_action(Machikoro,state,0,v))
@@ -284,7 +292,7 @@ print(machikoro.is_terminated(state))
  
 class Node:
 
-    def __init__(self, game, args, state, active_player, parent=None, action_taken=None, ischance = False, isdice_node = False, isrethrow_node=False, num_of_dice = 0):
+    def __init__(self, game, args, state, active_player, parent=None, action_taken=None, ischance = False, isdice_node = False, isrethrow_node=False, num_of_dice = 0, dices = None):
         self.game = game
         self.state = state
         self.args = args
@@ -294,22 +302,25 @@ class Node:
 
         self.action_taken = action_taken
         self.ischance = ischance
+        self.isrethrow_node = isrethrow_node
+        self.isdice_node = isdice_node
         self.num_of_dice = num_of_dice
-        dice_node = np.array([1,2]) if self.state[2][self.action_taken][0] else np.array([1])
-        self.expandable_moves = calc_dice_state_probabilities(self.num_of_dice) if self.ischance else dice_node if isdice_node else np.array([0,1]) if isrethrow_node else game.get_valid_moves(state,active_player)
-
+        self.dices = dices
+        dice_node = np.array([1,2]) if self.state[2][self.active_player][0] else np.array([1])
+        rethrow_node = np.array([0,1]) if self.state[2][self.active_player][3] else np.array([0])
+        self.expandable_moves = calc_dice_state_probabilities(self.num_of_dice) if self.ischance else dice_node if isdice_node else rethrow_node if isrethrow_node else game.get_valid_moves(state,active_player)
         self.visit_count = 0
         self.value_sum = 0
 
     def is_fully_expanded(self):
         if self.ischance:
-            return len(self.expandable_moves[0]) == len(self.children) and len(self.children) > 0
+            return len(self.expandable_moves) == len(self.children) and len(self.children) > 0
         
         return len(self.expandable_moves) == len(self.children) and len(self.children) > 0
     
     def select(self):
         if self.ischance:
-            dsp = self.expandable_moves[1]
+            dsp = self.expandable_moves
             outcome = r.choices(list(dsp.keys()),list(dsp.values()))[0]
             return self.children[outcome]
         
@@ -335,15 +346,22 @@ class Node:
     def expand(self):
         if self.ischance:
             for dices in self.expandable_moves.keys():
-                child_state = copy.deepcopy(child_state)
+                child_state = copy.deepcopy(self.state)
                 can_rethrow = self.state[2][self.active_player][3] and (self.parent is None or self.parent.isrethrow_node == False)
-                child = Node(self.game,self.args,child_state,self.active_player,self,None,False,False,can_rethrow,len(dices))
+                if not can_rethrow:#if no rethrow is possible the state distributes based on the dices
+                    self.game.distribution(child_state,self.active_player,np.array([int(x) for x in dices]))
+                child = Node(self.game,self.args,child_state,self.active_player,self,None,False,False,can_rethrow,len(dices),dices)
                 self.children[dices] = child
         elif self.isrethrow_node:
             index = r.choice(np.where(self.expandable_moves!=-1)[0])
             rethrow = self.expandable_moves[index]
             child_state = copy.deepcopy(self.state)
-            child = Node(self.game, self.args,child_state,self.active_player,self,rethrow,True, False, False, self.num_of_dice)
+            if rethrow:#choosing to rethrow appends a chance node
+                child = Node(self.game, self.args,child_state,self.active_player,self,rethrow,True, False, False, self.num_of_dice)
+                child.expand()
+            else:#else distribute with dices 
+                self.game.distribution(child_state,self.active_player,np.array([int(x) for x in self.dices]))
+                child = Node(self.game, self.args,child_state,self.active_player,self,rethrow,False, False, False, self.num_of_dice)
             self.children[rethrow] = child
             self.expandable_moves[index] = -1
         elif self.isdice_node:
@@ -352,6 +370,7 @@ class Node:
             child_state = copy.deepcopy(self.state)
             child = Node(self.game,self.args,child_state,self.active_player,self,None,True,False,False,num_of_dice)
             self.children[num_of_dice] = child
+            child.expand()
             self.expandable_moves[index] = -1
         else:
             index = r.choice(np.where(self.expandable_moves!=-1)[0])
@@ -371,10 +390,13 @@ class Node:
         #if the players do nothing for 6 turns concecuatively the game is terminated without winner
         action_cnt = 0
         #action block for expansion decision
+        assert not self.parent.ischance
+        if self.parent.isdice_node or self.parent.isrethrow_node:
+            dice_choice = self.num_of_dice
         #
         #rest of the simulation
         #loop
-        is_terminal, winner = self.game.is_terminated(rollout_state)
+        winner, is_terminal = self.game.is_terminated(rollout_state)
         while not is_terminal:
             #choose number of dice
             d = dice(dice_choice) if dice_choice is not None else (dice(1) if not rollout_state[2][player][0] else dice(r.choice([1,2])))
@@ -386,16 +408,17 @@ class Node:
             action = r.choice(v)
             rollout_state = self.game.get_next_state(rollout_state,player,action)
             #change players turn, unless doublets
-            if not rollout_state[2][player][2]:
+            if not rollout_state[2][player][2] or (len(d) == 2 and d[0] != d[1]):
                 player = (player+1)%len(rollout_state[0])
                 dice_choice = None
             else:
                 dice_choice = len(d)
 
-            is_terminal, winner = self.game.is_terminated(rollout_state) 
+            winner, is_terminal = self.game.is_terminated(rollout_state) 
             if action == 0:
                 action_cnt += 1
-                if action_cnt == 6:
+                if action_cnt == 10:
+                    #print("Simulation break after 10 eventless turns!")
                     break
             else:
                 action_cnt = 0
@@ -413,16 +436,82 @@ def calc_dice_state_probabilities(num_of_dice):
     all_possible_dice_states = list(iter.product(range(1,7),repeat=num_of_dice))
     dice_state_probabilities = {}
     for d_state in all_possible_dice_states:
-        sorted_d_state = np.sort(d_state)
-        index = ''.join(str(x) for x in np.sort(sorted_d_state))
+        index = ''.join(str(x) for x in np.sort(d_state))
         if index not in dice_state_probabilities:
             dice_state_probabilities[index] = 0
         dice_state_probabilities[index] += 1
     for d in dice_state_probabilities:
         dice_state_probabilities[d] = dice_state_probabilities[d]/len(all_possible_dice_states)
     return dice_state_probabilities
-arr = np.array([-1,2])
-print(np.where(arr!=-1))
-print(r.choice(np.where(arr!=-1)[0]))
-print(calc_dice_state_probabilities(1).keys())
-#print(np.array(list(list(calc_dice_state_probabilities(2).keys())[0])).astype(int))
+
+class MCTS:
+    def __init__(self, game, args):
+        self.game = game
+        self.args = args
+    
+    #returns the probabilities for the possible actions
+    def search(self,state,player,action,chance,dice_node,rethrow,dices):
+        try:
+            l = len(dices)
+        except:
+            l = 0
+        root = Node(self.game,self.args,state,player,None,action,chance,dice_node,rethrow,l,dices)
+        var = tqdm(range(self.args['num_searches']))
+
+        for search in var:
+            node = root
+            while node.is_fully_expanded():
+                node = node.select()
+                
+            points, is_terminal = self.game.is_terminated(node.state)
+            value = np.argmax(points) if np.count_nonzero(points==np.max(points))==1 else -1
+
+            if not is_terminal:
+                node = node.expand()
+                value = node.simulate()
+            node.backpropagate(value)
+
+        action_probs = np.zeros(3) if dice_node else np.zeros(2) if rethrow else np.zeros(20) 
+
+        for child_key, child_value in root.children.items():
+            action_probs[child_key] += child_value.visit_count
+
+        action_probs /= np.sum(action_probs)
+        depth = self.calc_depth(root)
+        print("depth: ", depth)
+        return action_probs
+
+    def calc_depth(self,root):
+        maxi = 0	
+        if len(root.children) == 0:
+            return 1
+        for key,child in root.children.items():
+            val = self.calc_depth(child)
+            if  val > maxi:
+                maxi = val 
+        return maxi+1
+    
+machikoro = Machikoro()
+state = machikoro.get_initial_state(2)
+player = 0
+#state[2][0][3] = 1
+print(state)
+print(machikoro.get_valid_moves(state,player))
+
+for i in range(1):
+
+    args = {
+        'C': 1.41,
+        'num_searches': 10000
+    }
+    print("C:",args['C'])
+    mcts = MCTS(machikoro, args)
+
+    if player == 0:
+        mcts_probs = mcts.search(state,player,None,False,False,False,0)
+        print(mcts_probs)
+        action = np.argmax(mcts_probs)
+        print(action)
+        print(np.argsort(mcts_probs))
+
+#Wenn die KI keine Option hat soll keine MCTS Suche gemacht werden Bsp. keine diceNode suche wenn das erste Upgrade nicht verfügbar ist

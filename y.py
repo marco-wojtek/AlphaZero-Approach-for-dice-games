@@ -247,8 +247,7 @@ sorted_possible_dice_states = list(iter.combinations_with_replacement(range(1,7)
 def calc_dice_state_probabilities(all_possible_dice_states):
     dice_state_probabilities = {}
     for d_state in all_possible_dice_states:
-        sorted_d_state = np.sort(d_state)
-        index = ''.join(str(x) for x in np.sort(sorted_d_state))
+        index = ''.join(str(x) for x in np.sort(d_state))
         if index not in dice_state_probabilities:
             dice_state_probabilities[index] = 0
         dice_state_probabilities[index] += 1

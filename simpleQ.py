@@ -202,7 +202,7 @@ class Node:
         self.ischance = ischance
 
         self.iswhiteturn = iswhiteturn
-        self.expandable_moves = game.get_valid_moves(self.state,self.active_player,self.iswhiteturn) if not self.ischance else all_possible_dice_states
+        self.expandable_moves = game.get_valid_moves(self.state,self.active_player,self.iswhiteturn) if not self.ischance else calc_dice_state_probabilities(all_possible_dice_states)
 
         self.visit_count = 0
         self.value_sum = 0
@@ -215,9 +215,8 @@ class Node:
 
     def select(self):
         if self.ischance:
-            # dsp = self.expandable_moves[1]
-            # outcome = r.choices(list(dsp.keys()),list(dsp.values()))[0]
-            outcome = r.choice(self.expandable_moves)
+            dsp = self.expandable_moves
+            outcome = r.choices(list(dsp.keys()),list(dsp.values()))[0]
             index = ''.join(str(x) for x in outcome)
             return self.children[index]
         
@@ -247,7 +246,7 @@ class Node:
         if self.ischance:
             for dices in self.expandable_moves:
                 child_state = copy.deepcopy(self.state)
-                child_state[0] = np.asarray(dices)
+                child_state[0] = np.array([int(x) for x in dices])
                 child = Node(self.game,self.args,child_state,(self.active_player+1)%len(self.state[-1]),self,iswhiteturn=True)
                 index = ''.join(str(x) for x in dices)
                 self.children[index] = child
@@ -303,7 +302,7 @@ class Node:
         while not is_terminal:
             iswhiteturn = white_turn<len(rollout_state[-1])
             v = self.game.get_valid_moves(rollout_state,player,iswhiteturn)
-            action = r.choice(v)# if player == 0 else greedy_bot(self.game,rollout_state,v,player)
+            action = r.choice(v) #if player == 0 else greedy_bot(self.game,rollout_state,v,player)
             if iswhiteturn:
                 rollout_state = self.game.get_next_state(rollout_state,player,action)
                 if white_turn == 0 and action_memory is None:
@@ -377,11 +376,24 @@ class MCTS:
     
 all_possible_dice_states = list(iter.product(range(1,7),repeat=4))
 
+def calc_dice_state_probabilities(all_possible_dice_states): #turns number of all possible dice states from 1296 to 756
+    dice_state_probabilities = {}
+    for d_state in all_possible_dice_states:
+        sorted_d_state = np.append(np.sort(d_state[:2]),d_state[2:])
+        index = ''.join(str(x) for x in sorted_d_state)
+        if index not in dice_state_probabilities:
+            dice_state_probabilities[index] = 0
+        dice_state_probabilities[index] += 1
+    for d in dice_state_probabilities:
+        dice_state_probabilities[d] = dice_state_probabilities[d]/len(all_possible_dice_states)
+    return dice_state_probabilities
+
+
 quixx = Quixx()
 state = quixx.get_initial_state()
 player = 0
-state[0] = np.array([4,3,6,1])
-white_turn = True
+state[0] = np.array([3,4,6,1])
+white_turn = False
 print(state)
 print(quixx.action_space)
 print(quixx.get_valid_moves(state,0,white_turn))
@@ -389,13 +401,13 @@ for i in range(1):
     
     args = {
         'C': 1.41,
-        'num_searches': 100000
+        'num_searches': 10000
     }
     print("C:",args['C'])
     mcts = MCTS(quixx, args)
   
     if player == 0:
-        mcts_probs = mcts.search(state,player,None,None,white_turn)
+        mcts_probs = mcts.search(state,player,0,0,white_turn)
         print(mcts_probs)
         action = np.argmax(mcts_probs)
         print(action)
@@ -411,3 +423,5 @@ for i in range(1):
 # print(state)
 # encoded = quixx.get_encoded_state(state)
 # print(encoded)
+        
+
