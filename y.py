@@ -507,23 +507,24 @@ state = yahtzee.get_initial_state()
 state[0] = np.array([1,1,1,1,5])
 
 print(all_permutations)
+print(len(all_permutations))
 print(state)
 encoded = yahtzee.get_encoded_state(state)
-print(encoded)
-for i in range(1):
+print(encoded, "\n Length of encoded state: ", len(encoded))
+# for i in range(1):
     
-    args = {
-        'C': 1.41,
-        'num_searches': 10000
-    }
-    print("C:",args['C'])
-    mcts = MCTS(yahtzee, args)
+#     args = {
+#         'C': 1.41,
+#         'num_searches': 10000
+#     }
+#     print("C:",args['C'])
+#     mcts = MCTS(yahtzee, args)
   
-    if player == 0:
-        mcts_probs = mcts.search(state,player)
-        print(mcts_probs)
-        action = np.argmax(mcts_probs)
-        print(action)
-        print(np.argsort(mcts_probs))
-    else:
-        action = random_bot_action(yahtzee,state,player,yahtzee.get_valid_moves(state,player))
+#     if player == 0:
+#         mcts_probs = mcts.search(state,player)
+#         print(mcts_probs)
+#         action = np.argmax(mcts_probs)
+#         print(action)
+#         print(np.argsort(mcts_probs))
+#     else:
+#         action = random_bot_action(yahtzee,state,player,yahtzee.get_valid_moves(state,player))

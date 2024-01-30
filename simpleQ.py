@@ -397,21 +397,21 @@ white_turn = False
 print(state)
 print(quixx.action_space)
 print(quixx.get_valid_moves(state,0,white_turn))
-for i in range(1):
+# for i in range(1):
     
-    args = {
-        'C': 1.41,
-        'num_searches': 10000
-    }
-    print("C:",args['C'])
-    mcts = MCTS(quixx, args)
+#     args = {
+#         'C': 1.41,
+#         'num_searches': 10000
+#     }
+#     print("C:",args['C'])
+#     mcts = MCTS(quixx, args)
   
-    if player == 0:
-        mcts_probs = mcts.search(state,player,0,0,white_turn)
-        print(mcts_probs)
-        action = np.argmax(mcts_probs)
-        print(action)
-        print(np.argsort(mcts_probs))
+#     if player == 0:
+#         mcts_probs = mcts.search(state,player,0,0,white_turn)
+#         print(mcts_probs)
+#         action = np.argmax(mcts_probs)
+#         print(action)
+#         print(np.argsort(mcts_probs))
 # state = quixx.get_next_state(state,0,4)
 # state = quixx.get_next_state(state,0,5)
 # state = quixx.get_next_state(state,0,6)
@@ -421,7 +421,7 @@ for i in range(1):
 # state = quixx.get_next_state(state,0,11)
 # print(quixx.get_points_and_terminated(state))
 # print(state)
-# encoded = quixx.get_encoded_state(state)
-# print(encoded)
+encoded = quixx.get_encoded_state(state)
+print(encoded, "\n Length of encoded state: ", len(encoded))
         
 

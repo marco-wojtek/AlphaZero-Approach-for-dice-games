@@ -159,7 +159,7 @@ class Machikoro:
             xR = xR + reward
         return xR
     
-    def get_encoded_state(self,state):
+    def get_encoded_state(self,state):# encoded as P0 Coins, P1 Coins, P0 cards+upgrades, P1 cards+upgrades, Cards on gameboard
         encoded = np.array([])
         for i in range(len(state[0])):
             encoded = np.append(encoded,get_binary(state[0][i]))
@@ -497,21 +497,22 @@ player = 0
 #state[2][0][3] = 1
 print(state)
 print(machikoro.get_valid_moves(state,player))
+encoded = machikoro.get_encoded_state(state)
+print(encoded, "\n Length of encoded state: ", len(encoded))
+# for i in range(1):
 
-for i in range(1):
+#     args = {
+#         'C': 1.41,
+#         'num_searches': 10000
+#     }
+#     print("C:",args['C'])
+#     mcts = MCTS(machikoro, args)
 
-    args = {
-        'C': 1.41,
-        'num_searches': 10000
-    }
-    print("C:",args['C'])
-    mcts = MCTS(machikoro, args)
-
-    if player == 0:
-        mcts_probs = mcts.search(state,player,None,False,False,False,0)
-        print(mcts_probs)
-        action = np.argmax(mcts_probs)
-        print(action)
-        print(np.argsort(mcts_probs))
+#     if player == 0:
+#         mcts_probs = mcts.search(state,player,None,False,False,False,0)
+#         print(mcts_probs)
+#         action = np.argmax(mcts_probs)
+#         print(action)
+#         print(np.argsort(mcts_probs))
 
 #Wenn die KI keine Option hat soll keine MCTS Suche gemacht werden Bsp. keine diceNode suche wenn das erste Upgrade nicht verfügbar ist
