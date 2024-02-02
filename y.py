@@ -244,15 +244,15 @@ def classic_greedy_bot(game,state,player,valid_actions):#Greedy bot which simula
 
 all_possible_dice_states = list(iter.product(range(1,7),repeat=5))#7776
 sorted_possible_dice_states = list(iter.combinations_with_replacement(range(1,7),r=5))#252
-def calc_dice_state_probabilities(all_possible_dice_states):
+def calc_dice_state_probabilities(possible_dice_states):
     dice_state_probabilities = {}
-    for d_state in all_possible_dice_states:
+    for d_state in possible_dice_states:
         index = ''.join(str(x) for x in np.sort(d_state))
         if index not in dice_state_probabilities:
             dice_state_probabilities[index] = 0
         dice_state_probabilities[index] += 1
     for d in dice_state_probabilities:
-        dice_state_probabilities[d] = dice_state_probabilities[d]/len(all_possible_dice_states)
+        dice_state_probabilities[d] = dice_state_probabilities[d]/len(possible_dice_states)
     return dice_state_probabilities
 
 def calc_sorted_possible_dice_states(current_dice, changing_dice):
@@ -449,7 +449,7 @@ class MCTS:
                 node = node.select()
             
             points, is_terminal = self.game.get_points_and_terminated(node.state)
-            value = np.argmax(points) if np.count_nonzero(points==np.max(points))==1 else -1
+            value = np.argmax(points) if np.count_nonzero(points==np.max(points))==1 else -1 #value is 0,1 or -1
 
             if not is_terminal:
                 node = node.expand()
@@ -484,11 +484,11 @@ class MCTS:
                 key = child_key
                 child = child_value
                 visits = child_value.visit_count
-        if child is not None:
-            print("Key: ",key)
-            print("Visits: ",child.visit_count)
-            print("(##########)")
-            self.best_child(child)
+        # if child is not None:
+        #     print("Key: ",key)
+        #     print("Visits: ",child.visit_count)
+        #     print("(##########)")
+        #     self.best_child(child)
         return
     
     def calc_depth(self,root):
@@ -501,16 +501,16 @@ class MCTS:
                 maxi = val 
         return maxi+1
     
-yahtzee = Yahtzee(2)
-player = 0
-state = yahtzee.get_initial_state()
-state[0] = np.array([1,1,1,1,5])
+# yahtzee = Yahtzee(2)
+# player = 0
+# state = yahtzee.get_initial_state()
+# state[0] = np.array([1,1,1,1,5])
 
-print(all_permutations)
-print(len(all_permutations))
-print(state)
-encoded = yahtzee.get_encoded_state(state)
-print(encoded, "\n Length of encoded state: ", len(encoded))
+# print(all_permutations)
+# print(len(all_permutations))
+# print(state)
+# encoded = yahtzee.get_encoded_state(state)
+# print(encoded, "\n Length of encoded state: ", len(encoded))
 # for i in range(1):
     
 #     args = {
