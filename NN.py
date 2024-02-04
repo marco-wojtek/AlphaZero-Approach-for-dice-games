@@ -5,7 +5,6 @@ import random as r
 import itertools as iter
 import copy
 from tqdm import tqdm
-from tqdm.notebook import trange
 import math
 import torch
 import torch.nn.functional as F
@@ -18,22 +17,23 @@ import y
 
 print(torch.__version__)
 #run with python -u "d:\Informatikstudium\Bachelor-Arbeit\Python_code\NN.py" or pyton -u NN.py
-# device = (
-#     "cuda"
-#     if torch.cuda.is_available()
-#     else "mps"
-#     if torch.backends.mps.is_available()
-#     else "cpu"
-# )
+device = (
+    "cuda"
+    if torch.cuda.is_available()
+    else "cpu"
+)
 # print(f"Using {device} device")
 
 class NeuralNetwork(nn.Module):
-    def __init__(self):
+    def __init__(self, device):
         super().__init__()
+
+        self.device = device 
+
         self.policyHead = nn.Sequential(
             nn.Linear(74, 60,dtype=float),
             nn.ReLU(),
-            nn.Linear(60, 45,dtype=float)
+            nn.Linear(60, 44,dtype=float)
         )
 
         self.valueHead = nn.Sequential(
@@ -43,6 +43,8 @@ class NeuralNetwork(nn.Module):
             nn.Tanh()
         )
 
+        self.to(device)
+
     def forward(self, x):
         policy = self.policyHead(x)
         value = self.valueHead(x)
@@ -51,31 +53,31 @@ class NeuralNetwork(nn.Module):
 # model = NeuralNetwork().to(device)
 # print(model)
 
-yahtzee = y.Yahtzee(2)
-state = yahtzee.get_initial_state()
-state[0] = y.rethrow(state[0],(1,1,1,1,1))
-encoded_state = yahtzee.get_encoded_state(state)
-print(state)
-tensor_state = torch.tensor(encoded_state)
-test = tensor_state.unsqueeze(0)
+# yahtzee = y.Yahtzee(2)
+# state = yahtzee.get_initial_state()
+# state[0] = y.rethrow(state[0],(1,1,1,1,1))
+# encoded_state = yahtzee.get_encoded_state(state)
+# tensor_state = torch.tensor(encoded_state)
+# test = tensor_state.unsqueeze(0)
 
-model = NeuralNetwork()
-value, policy = model(tensor_state)
-policy = torch.softmax(policy,0).detach().numpy()
-valid_moves = yahtzee.get_valid_moves(state,0,0)
-p = policy.copy()
-# for action phase like this
-for i in range(len(policy)):
-    if i not in valid_moves:
-        policy[i] = 0
-# for rethrow phase like this
-# policy[:15] = 0
-policy /= np.sum(policy)
-print("value: ", value.item())
-print("policy after rescaling:\n",policy)
-for action, prob in enumerate(policy):
-    if prob > 0:
-        print("action: {}, prob: {}".format(action,prob))
+# model = NeuralNetwork()
+# value, policy = model(tensor_state)
+# print(policy)
+# policy = torch.softmax(policy,0).detach().numpy()
+# valid_moves = yahtzee.get_valid_moves(state,0,0)
+# p = policy.copy()
+# #for action phase like this
+# for i in range(len(policy)):
+#     if i not in valid_moves:
+#         policy[i] = 0
+# #for rethrow phase like this
+# #policy[:15] = 0
+# policy /= np.sum(policy)
+# print("value: ", value.item())
+# print("policy after rescaling:\n",policy)
+# for action, prob in enumerate(policy):
+#     if prob > 0:
+#         print("action: {}, prob: {}".format(action,prob))
 # print("---------------------------")
 # p[:14] = 0
 # p /= np.sum(p)
@@ -141,9 +143,7 @@ class Node:
         self.value_sum = 0
 
     def is_fully_expanded(self):
-        if self.ischance:
-            return len(self.expandable_moves[0]) == len(self.children) and len(self.children) > 0
-        return len(self.expandable_moves) == len(self.children) and len(self.children) > 0
+        return len(self.children) > 0
     
     def select(self):
         if self.ischance:#for chance nodes expandle_moves[1] contains the probability distribution 
@@ -189,15 +189,16 @@ class Node:
                 if prob > 0:
                     child_state = copy.deepcopy(self.state)
                     if action <=13:#action is choosing to enter a throw or rethrow
-                        child_state = self.game.get_next_state(child_state,self.active_player,action)
                         if action == 0:
                             child = Node(self.game, self.args, child_state, self.active_player, self, action, False, None, self.throw+1, prob)
                         else:
+                            assert action <= 43
+                            child_state = self.game.get_next_state(child_state,self.active_player,action)
                             child = Node(self.game, self.args, child_state, (self.active_player+1)%len(child_state[1]),self, action, True, None, 0, prob)
-                            child.expand()
+                            child.expand(None)
                     else:#action is choosing a rethrow constellation
                         child = Node(self.game, self.args, child_state, self.active_player, self, None, True, all_permutations[action-14], self.throw, prob)
-                        child.expand()
+                        child.expand(None)
                     self.children[action] = child#maybe change indices for children in rethrow constellation for better overview if this version is not good
     
     def backpropagate(self,value):###
@@ -233,7 +234,7 @@ class MCTS:
                 value = -1
 
             if not is_terminal:
-                value, policy = self.model(torch.tensor(self.game.get_encoded_state(node)))
+                value, policy = self.model(torch.tensor(self.game.get_encoded_state(node.state),device=self.model.device))
                 if node.action_taken == 0:
                     policy[:14] = 0
                 else:
@@ -241,24 +242,18 @@ class MCTS:
                     for i in range(len(policy)):
                         if i not in valid_moves:
                             policy[i] = 0
+                policy = torch.softmax(policy,0).detach().cpu().numpy()
                 policy /= np.sum(policy)
 
                 value = value.item()
-                node = node.expand(policy)
+                node.expand(policy)
             
             node.backpropagate(value)
 
-        action_probs = np.zeros(len(root.children)) if root.action_taken==0 else np.zeros(44)
+        action_probs = np.zeros(44)
         for child_key, child_value in root.children.items():
+            action_probs[child_key] += child_value.visit_count
 
-            try:#child key is integer
-                action_probs[child_key] += child_value.visit_count
-            except:
-                index = np.argwhere([perm == tuple([int(i) for a,i in enumerate(child_key)]) for perm in all_permutations])
-                action_probs[index] += child_value.visit_count
-        print(action_probs)
-        print("depth:",self.calc_depth(root))
-        #self.best_child(root)
         action_probs /= np.sum(action_probs)
         return action_probs
     
@@ -269,10 +264,50 @@ class AlphaZero:
         self.optimizer = optimizer
         self.game = game
         self.args = args
-        self.MCTS = MCTS(game,args,model)
+        self.mcts = MCTS(game,args,model)
 
-    def SelfPlay():
-        pass
+    def selfPlay(self):
+        memory = []
+        player = 0
+        state = self.game.get_initial_state()
+        state = self.game.get_next_state(state,player,0,(1,1,1,1,1))
+
+        action = None
+        throw = 0
+        while True:
+            action_probs = self.mcts.search(state,player,action,throw)
+
+            memory.append((state,action_probs,player))
+
+            action = r.choices(np.arange(len(action_probs)),action_probs)[0]
+
+            if action <=13:
+                state = self.game.get_next_state(state,player,action)
+            else:
+                state = self.game.get_next_state(state,player,0,all_permutations[action-14])
+
+            #check points and terminated
+            value, is_terminal = self.game.get_points_and_terminated(state)
+
+            if is_terminal:
+                returnMemory = []
+                for hist_neutral_state, hist_action_probs, hist_player in memory:
+                    hist_outcome = 1 if hist_player == value else -1
+                    returnMemory.append((
+                        self.game.get_encoded_state(hist_neutral_state),
+                        hist_action_probs,
+                        hist_outcome
+                    ))
+                return returnMemory
+
+            #change turn
+            if not(action == 0 or action >13):
+                player = (player+1)%len(state[1])
+                state = self.game.get_next_state(state,player,0,(1,1,1,1,1))
+                throw = 0
+            elif action == 0:
+                throw += 1
+
 
     def train(self,memory):
         random.shuffle(memory)
@@ -282,9 +317,9 @@ class AlphaZero:
             
             state, policy_targets, value_targets = np.array(state), np.array(policy_targets), np.array(value_targets).reshape(-1, 1)
             
-            state = torch.tensor(state, dtype=torch.float32)
-            policy_targets = torch.tensor(policy_targets, dtype=torch.float32)
-            value_targets = torch.tensor(value_targets, dtype=torch.float32)
+            state = torch.tensor(state, dtype=torch.float32, device=self.model.device)
+            policy_targets = torch.tensor(policy_targets, dtype=torch.float32, device=self.model.device)
+            value_targets = torch.tensor(value_targets, dtype=torch.float32, device=self.model.device)
             
             out_policy, out_value = self.model(state)
             
@@ -301,11 +336,11 @@ class AlphaZero:
             memory = []
             
             self.model.eval()
-            for selfPlay_iteration in trange(self.args['num_selfPlay_iterations']):
+            for selfPlay_iteration in tqdm(range(self.args['num_selfPlay_iterations'])):
                 memory += self.selfPlay()
                 
             self.model.train()
-            for epoch in trange(self.args['num_epochs']):
+            for epoch in tqdm(range(self.args['num_epochs'])):
                 self.train(memory)
             
             torch.save(self.model.state_dict(), f"model_{iteration}.pt")
@@ -314,17 +349,19 @@ class AlphaZero:
 
 def test():
     yahtzee = y.Yahtzee(2)
-    model = NeuralNetwork()
+    model = NeuralNetwork(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
     args = {
         'C': 2,
-        'num_searches': 60,
-        'num_iterations': 3,
-        'num_selfPlay_iterations': 500,
+        'num_searches': 50,
+        'num_iterations': 2,
+        'num_selfPlay_iterations': 100,
         'num_epochs': 4,
         'batch_size': 64
     }
 
     alphaZero = AlphaZero(model, optimizer, yahtzee, args)
     alphaZero.learn()
+
+test()
