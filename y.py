@@ -61,8 +61,8 @@ option_names = np.array([
                 "Three Same (All Eyes)",
                 "Four Same (All Eyes)",
                 "Full House(25p)",
-                "small Straight (25p)",
-                "large Straight (30p)",
+                "small Straight (30p)",
+                "large Straight (40p)",
                 "Yahtzee (50p)",
                 "Chance (all Eyes)"])
 

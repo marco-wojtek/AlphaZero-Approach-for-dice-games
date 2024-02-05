@@ -22,6 +22,7 @@ device = (
     if torch.cuda.is_available()
     else "cpu"
 )
+print("device: ", device)
 # print(f"Using {device} device")
 
 class NeuralNetwork(nn.Module):
@@ -220,7 +221,7 @@ class MCTS:
     @torch.no_grad()
     def search(self,state,player,last_action=None,throw=0):
         root = Node(self.game,self.args,state,player,action_taken=last_action,throw=throw)
-        for search in tqdm(range(self.args['num_searches'])):
+        for search in range(self.args['num_searches']):
             node = root
             
             while node.is_fully_expanded():
@@ -235,6 +236,7 @@ class MCTS:
 
             if not is_terminal:
                 value, policy = self.model(torch.tensor(self.game.get_encoded_state(node.state),device=self.model.device))
+                policy = torch.softmax(policy,0).detach().cpu().numpy()
                 if node.action_taken == 0:
                     policy[:14] = 0
                 else:
@@ -242,17 +244,15 @@ class MCTS:
                     for i in range(len(policy)):
                         if i not in valid_moves:
                             policy[i] = 0
-                policy = torch.softmax(policy,0).detach().cpu().numpy()
+                #policy = torch.softmax(policy,0).detach().cpu().numpy()
                 policy /= np.sum(policy)
 
                 value = value.item()
                 node.expand(policy)
-            
             node.backpropagate(value)
-
         action_probs = np.zeros(44)
         for child_key, child_value in root.children.items():
-            action_probs[child_key] += child_value.visit_count
+            action_probs[child_key] = child_value.visit_count
 
         action_probs /= np.sum(action_probs)
         return action_probs
@@ -275,12 +275,13 @@ class AlphaZero:
         action = None
         throw = 0
         while True:
-            action_probs = self.mcts.search(state,player,action,throw)
-
+            #print(state, "\n action: ",action , "\n -------------------------")
+            action_probs = self.mcts.search(state,player,action,throw)#check search in relation to valid moves
+            #print("action_props: ", action_probs)
             memory.append((state,action_probs,player))
 
             action = r.choices(np.arange(len(action_probs)),action_probs)[0]
-
+            #print("-------------------------------")
             if action <=13:
                 state = self.game.get_next_state(state,player,action)
             else:
@@ -292,7 +293,7 @@ class AlphaZero:
             if is_terminal:
                 returnMemory = []
                 for hist_neutral_state, hist_action_probs, hist_player in memory:
-                    hist_outcome = 1 if hist_player == value else -1
+                    hist_outcome = 1 if hist_player == np.argmax(value) else -1
                     returnMemory.append((
                         self.game.get_encoded_state(hist_neutral_state),
                         hist_action_probs,
@@ -317,11 +318,11 @@ class AlphaZero:
             
             state, policy_targets, value_targets = np.array(state), np.array(policy_targets), np.array(value_targets).reshape(-1, 1)
             
-            state = torch.tensor(state, dtype=torch.float32, device=self.model.device)
-            policy_targets = torch.tensor(policy_targets, dtype=torch.float32, device=self.model.device)
-            value_targets = torch.tensor(value_targets, dtype=torch.float32, device=self.model.device)
+            state = torch.tensor(state, dtype=float, device=self.model.device)
+            policy_targets = torch.tensor(policy_targets, dtype=float, device=self.model.device)
+            value_targets = torch.tensor(value_targets, dtype=float, device=self.model.device)
             
-            out_policy, out_value = self.model(state)
+            out_value, out_policy = self.model(state)
             
             policy_loss = F.cross_entropy(out_policy, policy_targets)
             value_loss = F.mse_loss(out_value, value_targets)
@@ -356,7 +357,7 @@ def test():
         'C': 2,
         'num_searches': 50,
         'num_iterations': 2,
-        'num_selfPlay_iterations': 100,
+        'num_selfPlay_iterations': 1,
         'num_epochs': 4,
         'batch_size': 64
     }
