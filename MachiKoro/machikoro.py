@@ -13,12 +13,12 @@ class Machikoro:
         self.card_costs = np.array([1,1,1,2,2,3,6,7,8,5,3,6,3,3,2,4,10,16,22])#last 4 are upgrade costs
 
     def get_initial_state(self,num_players):
-        player_bank = np.zeros(num_players) + 3
-        player_cards = np.zeros((num_players,15))
+        player_bank = np.zeros(num_players,dtype=int) + 3
+        player_cards = np.zeros((num_players,15),dtype=int)
         player_cards[:,0] = 1
         player_cards[:,2] = 1
-        player_upgrades = np.zeros((num_players,4))
-        game_board = np.zeros(15) + 6
+        player_upgrades = np.zeros((num_players,4),dtype=int)
+        game_board = np.zeros(15,dtype=int) + 6
         game_board[6:9] = num_players
         #disable trading and stealing 5
         game_board[7:9] = 0
@@ -101,6 +101,10 @@ class Machikoro:
                 current_player = (current_player+1)%len(state[0])
                 if current_player == player:
                     break
+        #limiter for coin stack        
+        for n in range(len(state[0])):
+            if state[0][n] > 63:
+                state[0][n] = 63
 
     def get_valid_moves(self,state,player,can_steal = False):#active Stealing disabled for 2 players bc coins are always taken from opponent
         #first check which cards are available, afterwards filter the too expensive ones #regard upgrade actions stealing 5 coins or swapping cards which are handled before the card option
@@ -166,9 +170,26 @@ class Machikoro:
         for i in range(len(state[0])):
             encoded = np.append(encoded,state[1][i]>0)
             encoded = np.append(encoded,state[2][i])
-        return np.append(encoded,state[3]>0)
+        #new
+        for card in state[3]:
+            encoded = np.append(encoded,get_one_hot(card+1,7))
+        #return np.append(encoded,state[3]>0) #old
+        return encoded
+    
+    def get_encoded_states(self,states):
+        stack = np.array([np.zeros(155)])#65
+        for st in states:
+            stack = np.append(stack,[self.get_encoded_state(st)],axis=0)
+        return stack[1:]
+
+def get_one_hot(num,size):
+    one_hot = np.zeros(size)
+    one_hot[int(size-num)] = 1
+    return one_hot
 
 def get_binary(num):
+    if num>= 64:
+        num = 63
     return np.array(list(np.binary_repr(int(num),width=6))).astype(int)           
 
 dice_probs = {
@@ -495,15 +516,15 @@ machikoro = Machikoro()
 state = machikoro.get_initial_state(2)
 player = 0
 #state[2][0][3] = 1
-print(state)
-print(machikoro.get_valid_moves(state,player))
-encoded = machikoro.get_encoded_state(state)
-print(encoded, "\n Length of encoded state: ", len(encoded))
+# print(state)
+# print(machikoro.get_valid_moves(state,player))
+# encoded = machikoro.get_encoded_state(state)
+# print(encoded, "\n Length of encoded state: ", len(encoded))
 # for i in range(1):
 
 #     args = {
-#         'C': 1.41,
-#         'num_searches': 10000
+#         'C': 3,
+#         'num_searches': 300
 #     }
 #     print("C:",args['C'])
 #     mcts = MCTS(machikoro, args)

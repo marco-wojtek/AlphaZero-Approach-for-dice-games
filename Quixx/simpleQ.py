@@ -115,6 +115,27 @@ class Quixx:
             encoded = np.append(encoded,get_one_hot(err+1,5))
                 
         return encoded
+    
+    def get_encoded_states(self,states):
+        stack = np.array([np.zeros(122)])
+        for st in states:
+            encoded = np.array([])
+            for num in st[0]:
+                #print(num," encoded as: ",get_one_hot(num,6))
+                encoded = np.append(encoded,get_one_hot(num,6))
+            for i in range(1,len(st)-1):
+                for arr in st[i]:
+                    #print(arr," encoded as: ",arr==1)
+                    encoded = np.append(encoded,arr==1)
+                    #print(arr," encoded as: ",arr>1)
+                    encoded = np.append(encoded,arr>1)
+            for err in st[-1]:
+                #print(err," encoded as: ",get_one_hot(err+1,5))
+                encoded = np.append(encoded,get_one_hot(err+1,5))
+
+            stack = np.append(stack,[encoded],axis=0)
+        return stack[1:]
+
 
 def get_one_hot(num,size):
     one_hot = np.zeros(size)
@@ -389,14 +410,14 @@ def calc_dice_state_probabilities(all_possible_dice_states): #turns number of al
     return dice_state_probabilities
 
 
-quixx = Quixx()
-state = quixx.get_initial_state()
-player = 0
-state[0] = np.array([3,4,6,1])
-white_turn = False
-print(state)
-print(quixx.action_space)
-print(quixx.get_valid_moves(state,0,white_turn))
+# quixx = Quixx()
+# state = quixx.get_initial_state()
+# player = 0
+# state[0] = np.array([3,4,6,1])
+# white_turn = False
+# print(state)
+# print(quixx.action_space)
+# print(quixx.get_valid_moves(state,0,white_turn))
 # for i in range(1):
     
 #     args = {
@@ -421,7 +442,7 @@ print(quixx.get_valid_moves(state,0,white_turn))
 # state = quixx.get_next_state(state,0,11)
 # print(quixx.get_points_and_terminated(state))
 # print(state)
-encoded = quixx.get_encoded_state(state)
-print(encoded, "\n Length of encoded state: ", len(encoded))
+# encoded = quixx.get_encoded_state(state)
+# print(encoded, "\n Length of encoded state: ", len(encoded))
         
 

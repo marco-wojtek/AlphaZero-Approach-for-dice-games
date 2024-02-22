@@ -13,7 +13,7 @@ def rethrow(dice, to_rethrow):
     for i in range(len(dice)):
         if to_rethrow[i]:
             dice[i] = random.randint(1,6) 
-    return np.sort(dice)
+    return np.sort(np.asarray(dice,dtype=int))
 
 #all functions to calculate how many points the dice returns in the specific category
 
@@ -87,15 +87,19 @@ class Yahtzee: #sorting the dice arrays changes the number of possible dice stat
         self.player_num = num_players
 
     def get_valid_moves(self,state,player,rethrow):
-        return np.ravel(np.argwhere(np.append(rethrow<2,state[1][player] == -1)))
+        all_actions = np.ones(44)
+        all_actions[np.where(state[1][player] != -1)[0]] = 0
+        if rethrow == 2:
+            all_actions[13:] = 0
+        return np.where(all_actions)[0]
    
     def get_next_state(self,state,player,action,re_dice=None):
-        if re_dice == None:
+        if re_dice is None:
             re_dice = np.zeros(len(state[0]))
-        if action == 0:
+        if action == -1:
             state[0] = rethrow(state[0],re_dice)
         else:
-            state[1][player][action-1] = options[action-1](state[0])
+            state[1][player][action] = options[action](state[0])
         return state
 
     def get_initial_state(self):
@@ -114,18 +118,31 @@ class Yahtzee: #sorting the dice arrays changes the number of possible dice stat
             return points,False
         return points, True
     
-    def get_encoded_state(self,state):
+    def get_encoded_state(self,state,throw):
         encoded = np.array([])
+        #encoded dice
         for num in state[0]:
             #print(num," encoded as: ",get_one_hot(num,6))
             encoded = np.append(encoded,get_one_hot(num,6))
-        for arr in state[1]:
-            encoded = np.append(encoded,arr==-1)
+        #open fields
+        active_player_index = np.argmax(np.count_nonzero(state[1]==-1,axis=1))
+        encoded = np.append(encoded,state[1][active_player_index]==-1)
+        # for arr in state[1]:
+        #     encoded = np.append(encoded,arr==-1)
         #append curent points binary point with 9 bits
         points, t = self.get_points_and_terminated(state)
         for i in range(len(state[1])):
             encoded = np.append(encoded,get_binary(points[i]))
+        encoded = np.append(encoded,get_one_hot(throw+1,3))
         return encoded
+    
+    def get_encoded_states(self,states,throws):
+        stack = np.array([np.zeros(64)])#77
+        i = 0
+        for st in states:
+            stack = np.append(stack,[self.get_encoded_state(st,throws[i])],axis=0)
+            i += 1
+        return stack[1:]
 
 def get_one_hot(num,size):
     one_hot = np.zeros(size)
@@ -140,32 +157,12 @@ all_permutations = list(iter.product(range(0,2),repeat=5))[1:]
 def random_bot_action(game,state,player,valid_actions):
     c = r.choice(valid_actions)
     throw = 0
-    while c==0 and throw<2:
-        state = game.get_next_state(state,player,0,np.asarray(r.choice(all_permutations)))
+    while c>12 and throw<2:
+        state = game.get_next_state(state,player,-1,np.asarray(r.choice(all_permutations)))
         v = game.get_valid_moves(state,player,throw)
         c = r.choice(v)
         throw += 1
     return c
-
-def greedy_bot_action(game,state,player,valid_actions,throw):#Greedy bot which simulates every throw once and chooses the best expectation -> if rethrowing brings possibly a better result the risk is taken
-    option = np.argwhere(valid_actions)
-    choice,points = -1,0
-    game = copy.deepcopy(state)
-    for opt in range(len(option)):
-        if option[opt][0] == 0:
-            for perm in all_permutations:
-                c_game = copy.deepcopy(game.get_next_state(game,player,0,np.asarray(perm)))
-                c = greedy_bot_action(c_game,player,game.get_valid_moves(c_game,player,throw+1),throw+1)
-                c_game = game.get_next_state(c_game,player,c)
-                p,t = game.get_points_and_terminated(c_game)
-                if p[player]>points:
-                    choice,points = c,p[player]
-        else:
-            c_game = copy.deepcopy(game.get_next_state(game,player,option[opt][0]))
-            p,t = game.get_points_and_terminated(c_game)
-            if p[player]>points:
-                choice,points = option[opt][0],p[player]   
-    return choice
 
 def classic_greedy_bot(game,state,player,valid_actions):#Greedy bot which simulates every throw once and chooses the best expectation -> if rethrowing brings possibly a better result the risk is taken
     option = valid_actions[1:]
@@ -179,7 +176,7 @@ def classic_greedy_bot(game,state,player,valid_actions):#Greedy bot which simula
             if p>points:
                 choice,points = option[opt],p
         if points == 0:
-            state = game.get_next_state(state,player,0,[1,1,1,1,1])
+            state = game.get_next_state(state,player,-1,[1,1,1,1,1])
             t+=1
         else:
             break
@@ -433,7 +430,6 @@ class Node:
         if self.parent is not None:
             self.parent.backpropagate(value) 
 
-
 class MCTS:
     def __init__(self, game, args):
         self.game = game
@@ -484,11 +480,6 @@ class MCTS:
                 key = child_key
                 child = child_value
                 visits = child_value.visit_count
-        # if child is not None:
-        #     print("Key: ",key)
-        #     print("Visits: ",child.visit_count)
-        #     print("(##########)")
-        #     self.best_child(child)
         return
     
     def calc_depth(self,root):
@@ -528,3 +519,5 @@ class MCTS:
 #         print(np.argsort(mcts_probs))
 #     else:
 #         action = random_bot_action(yahtzee,state,player,yahtzee.get_valid_moves(state,player))
+    
+
