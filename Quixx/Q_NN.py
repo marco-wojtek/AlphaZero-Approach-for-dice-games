@@ -493,7 +493,9 @@ class AlphaZeroParallel:
             out_value, out_policy = self.model(state)
             #print(out_policy.shape,"\n",policy_targets.shape,"\n",out_value.shape,"\n",value_targets.shape,"\n")
             assert torch.all(value_targets>=-1 | value_targets<=1).item() ###delete tanh
-            policy_loss = F.cross_entropy(out_policy, policy_targets)
+            out_policy[policy_targets==0] = -torch.inf
+            policy_loss = -torch.nan_to_num(F.log_softmax(out_policy, -1) * policy_targets).sum(-1).mean()
+            #policy_loss = F.cross_entropy(out_policy, policy_targets)
             value_loss = F.mse_loss(out_value, value_targets)
             loss = policy_loss + value_loss
             

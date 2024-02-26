@@ -569,16 +569,13 @@ class AlphaZeroParallel:
             state = torch.tensor(state, dtype=float, device=self.model.device)
             policy_targets = torch.tensor(policy_targets, dtype=float, device=self.model.device)
             value_targets = torch.tensor(value_targets, dtype=float, device=self.model.device)
-            print("targets: ", policy_targets)
+            #print("targets: ", policy_targets)
             out_value, out_policy = self.model(state)
-            ###
-            out_policy[policy_targets==0] = -torch.inf
-            print("out: ", torch.softmax(out_policy,-1).detach().cpu().numpy())
-            ###
-            #print(out_policy.shape,"\n",policy_targets.shape,"\n",out_value.shape,"\n",value_targets.shape,"\n"
             assert torch.all(torch.any(policy_targets>0,-1))
             assert torch.all(value_targets>=-1).item() and torch.all(value_targets<=1).item() ###delete tanh
-            policy_loss = F.cross_entropy(out_policy, policy_targets)
+            out_policy[policy_targets==0] = -torch.inf
+            policy_loss = -torch.nan_to_num(F.log_softmax(out_policy, -1) * policy_targets).sum(-1).mean()
+            #policy_loss = F.cross_entropy(out_policy, policy_targets)
             value_loss = F.mse_loss(out_value, value_targets)
             loss = policy_loss + value_loss
 
@@ -630,16 +627,16 @@ class SPG:
 def testParallel():
     mk = machikoro.Machikoro()
     model = NeuralNetwork(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)#0.001
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)#0.001
 
-    # model.load_state_dict(torch.load('Models/model_2.pt', map_location=device))
-    # optimizer.load_state_dict(torch.load('Models/optimizer_2.pt', map_location=device))
+    model.load_state_dict(torch.load('Models/fmodel_2.pt', map_location=device))
+    optimizer.load_state_dict(torch.load('Models/foptimizer_2.pt', map_location=device))
     args = {
         'C': 3,
-        'num_searches': 200,#500            800
-        'num_iterations': 1,
-        'num_selfPlay_iterations': 15,#300  150
-        'num_parallel_games': 5,#100         50
+        'num_searches': 500,#500            800
+        'num_iterations': 3,
+        'num_selfPlay_iterations': 90,#300  150
+        'num_parallel_games': 30,#100         50
         'num_epochs': 4,
         'batch_size': 64,#64
         'temperature': 1.25,
@@ -650,8 +647,8 @@ def testParallel():
     alphaZero = AlphaZeroParallel(model, optimizer, mk, args)
     alphaZero.learn()
 
-# policy_loss_arr, value_loss_arr, total_loss_arr = [], [], []
-# testParallel()
+policy_loss_arr, value_loss_arr, total_loss_arr = [], [], []
+testParallel()
 
 mk = machikoro.Machikoro()
 model = NeuralNetwork(device)
@@ -665,10 +662,25 @@ mk.distribution(state,0,machikoro.dice(1))
 mk.distribution(state,0,machikoro.dice(1))
 print(state)
 
-model.load_state_dict(torch.load('Models/fmodel_0.pt', map_location=device))
-optimizer.load_state_dict(torch.load('Models/foptimizer_0.pt', map_location=device))
+# model.load_state_dict(torch.load('Models/fmodel_0.pt', map_location=device))
+# optimizer.load_state_dict(torch.load('Models/foptimizer_0.pt', map_location=device))
+# value,policy = model(torch.tensor(mk.get_encoded_state(state),device=model.device))
+# policy = torch.softmax(policy,0).detach().cpu().numpy()
+# print(policy)
+# v = mk.get_valid_moves(state,0)
+# for i in range(len(policy)):
+#     if i not in v:
+#         policy [i] = 0
+# policy /= np.sum(policy)
+# print(value.item())
+# print(policy)
+# print(np.argsort(policy))
+
+model.load_state_dict(torch.load('Models/fmodel_4.pt', map_location=device))
+optimizer.load_state_dict(torch.load('Models/foptimizer_4.pt', map_location=device))
 value,policy = model(torch.tensor(mk.get_encoded_state(state),device=model.device))
 policy = torch.softmax(policy,0).detach().cpu().numpy()
+print(policy)
 v = mk.get_valid_moves(state,0)
 for i in range(len(policy)):
     if i not in v:
@@ -678,23 +690,11 @@ print(value.item())
 print(policy)
 print(np.argsort(policy))
 
-# model.load_state_dict(torch.load('Models/model_1.pt', map_location=device))
-# optimizer.load_state_dict(torch.load('Models/optimizer_1.pt', map_location=device))
-# value,policy = model(torch.tensor(mk.get_encoded_state(state),device=model.device))
-# policy = torch.softmax(policy,0).detach().cpu().numpy()
-# v = mk.get_valid_moves(state,0)
-# for i in range(len(policy)):
-#     if i not in v:
-#         policy [i] = 0
-# policy /= np.sum(policy)
-# print(value.item())
-# print(policy)
-# print(np.argsort(policy))
-
 # model.load_state_dict(torch.load('Models/model_2.pt', map_location=device))
 # optimizer.load_state_dict(torch.load('Models/optimizer_2.pt', map_location=device))
 # value,policy = model(torch.tensor(mk.get_encoded_state(state),device=model.device))
 # policy = torch.softmax(policy,0).detach().cpu().numpy()
+# print(policy)
 # v = mk.get_valid_moves(state,0)
 # for i in range(len(policy)):
 #     if i not in v:
@@ -703,78 +703,83 @@ print(np.argsort(policy))
 # print(value.item())
 # print(policy)
 # print(np.argsort(policy))
+# games = 1000
+# winr = []
+# for i in tqdm(range(games)):
+#     player = 0
+#     state = mk.get_initial_state(2)
 
-# player = 0
-# state = mk.get_initial_state(2)
+#     action = None
+#     dices = machikoro.dice(1)
+#     dice_choice_available = False
+#     rethrow_choice_available = False
+#     zero_cnt = 0
 
-# action = None
-# dices = None
-# dice_choice_available = False
-# rethrow_choice_available = False
-# zero_cnt = 0
-
-# while True:
-#     print("last action: ", action)
-#     print("active player: ", player)
-#     print(state)
-#     value,policy = model(torch.tensor(mk.get_encoded_state(state),device=model.device))
-#     policy = torch.softmax(policy,0).detach().cpu().numpy()
-#     if dice_choice_available:
-#         if player == 0:
-#             policy[:20] = 0
-#             policy[22:] = 0
-#             policy /= np.sum(policy)
-#             action = np.argmax(policy)
-#             dices = machikoro.dice(action-19)
-
-#             dice_choice_available = False
-#         else:
-#             dices = machikoro.dice(r.choice([1,2]))
-#             dice_choice_available = False
-#     elif rethrow_choice_available:
-#         if player == 0:
-#             policy[:22] = 0
-#             policy /= np.sum(policy)
-#             action = np.argmax(policy)
-
-#             dices = machikoro.dice(len(dices)) if action-22 else dices
-
-#             rethrow_choice_available = False
-#         else:
-#             act = r.choice([0,1])
-#             if act:
-#                 dices = machikoro.dice(len(dices))
-
-#             rethrow_choice_available = False
-#     else:
-#         if dices is None:
-#             dices = machikoro.dice(1)
-#         mk.distribution(state,player,dices)
-#         v = mk.get_valid_moves(state,player)
-#         if player == 0:
-#             for i in range(len(policy)):
-#                 if i not in v:
-#                     policy[i] = 0
-#             policy /= np.sum(policy)
-#             action = np.argmax(policy)
-#         else:
-#             action = r.choice(v)
-
-#         state = mk.get_next_state(state,player,action)
-
-#         winner, is_terminal = mk.is_terminated(state)
-
-#         if is_terminal or zero_cnt == 20:
-#             print("winner: ", winner)
-#             print(state)
-#             break
-
-#         if action == 0:
-#             zero_cnt += 1
-#         else:
-#             zero_cnt = 0
+#     while True:
         
-#         if action in range(20):
-#             player = (player +1) % len(state[0])
-#             dice_choice_available = state[2][player][0]
-#             rethrow_choice_available = state[2][player][3]
+#         #print("active player: ", player)
+        
+#         value,policy = model(torch.tensor(mk.get_encoded_state(state),device=model.device))
+#         policy = torch.softmax(policy,0).detach().cpu().numpy()
+#         if dice_choice_available:
+#             if player == 0:
+#                 policy[:20] = 0
+#                 policy[22:] = 0
+#                 policy /= np.sum(policy)
+#                 action = np.argmax(policy)
+#             else:
+#                 action = r.choice([20,21])
+#             dices = machikoro.dice(action-19)
+#             dice_choice_available = False
+#         elif rethrow_choice_available:
+#             if player == 0:
+#                 policy[:22] = 0
+#                 policy /= np.sum(policy)
+#                 action = np.argmax(policy)
+
+#             else:
+#                 action = r.choice([22,23])
+            
+#             dices = machikoro.dice(len(dices)) if action-22 else dices
+#             rethrow_choice_available = False
+#         else:
+#             #print("dices: ",dices)
+#             mk.distribution(state,player,dices)
+#             v = mk.get_valid_moves(state,player)
+#             if player == 0:
+#                 for i in range(len(policy)):
+#                     if i not in v:
+#                         policy[i] = 0
+#                 policy /= np.sum(policy)
+#                 action = np.argmax(policy)
+#             else:
+#                 action = r.choice(v)
+
+#             state = mk.get_next_state(state,player,action)
+
+#             winner, is_terminal = mk.is_terminated(state)
+
+#             if is_terminal or zero_cnt == 20:
+#                 winr = np.append(winr,winner)
+#                 break
+
+#             if action == 0:
+#                 zero_cnt += 1
+#             else:
+#                 zero_cnt = 0
+            
+#             if action in range(20):
+#                 if len(dices)==2 and state[2][player][2] and dices[0]==dices[1]:
+#                     player = player
+#                 else:
+#                     player = (player +1) % len(state[0])
+#                 dice_choice_available = state[2][player][0]
+#                 rethrow_choice_available = state[2][player][3]
+#                 dices = machikoro.dice(1)
+#         # print("action: ", action)
+#         # print(state)
+#         # print("------------------")
+
+# print("Player 0 wins: ",np.count_nonzero(winr==0))
+# print("Player 1 wins: ",np.count_nonzero(winr==1))
+# print("Ties: ",np.count_nonzero(winr==-1))

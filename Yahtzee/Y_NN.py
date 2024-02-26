@@ -404,8 +404,26 @@ class MCTSParallel:
     
     @torch.no_grad()
     def search(self,states,player,spGames,last_action=None,throw=0):
+        #dirichlet variant
+        _, policy = self.model(torch.tensor(self.game.get_encoded_states(states,throw),device=self.model.device))
+        policy = torch.softmax(policy,1).detach().cpu().numpy()
+        policy = (1 - self.args['dirichlet_epsilon']) * policy + self.args['dirichlet_epsilon'] * np.random.dirichlet([self.args['dirichlet_alpha']] * len(policy[0]), size=policy.shape[0])
         for i,spg in enumerate(spGames):
             spg.root = Node(self.game,self.args,states[i],player[i],action_taken=last_action[i],throw=throw[i],visit_count=1)
+            spg_policy = policy[i]
+
+            node = spg.root
+            valid_moves = self.game.get_valid_moves(node.state,node.active_player,node.throw)
+            for k in range(len(spg_policy)):
+                if k not in valid_moves:
+                    spg_policy[k] = 0
+
+            spg_policy /= np.sum(spg_policy)
+
+            spg.root.expand(spg_policy)
+
+        # for i,spg in enumerate(spGames):
+        #     spg.root = Node(self.game,self.args,states[i],player[i],action_taken=last_action[i],throw=throw[i],visit_count=1)
 
 
         for search in range(self.args['num_searches']):
@@ -560,7 +578,10 @@ class AlphaZeroParallel:
             assert torch.all(value_targets>=-1).item() and torch.all(value_targets<=1).item() ###delete tanh
             out_value, out_policy = self.model(state)
             
-            policy_loss = F.cross_entropy(out_policy, policy_targets)
+            out_policy[policy_targets==0] = -torch.inf
+            policy_loss = -torch.nan_to_num(F.log_softmax(out_policy, -1) * policy_targets).sum(-1).mean()
+
+            #policy_loss = F.cross_entropy(out_policy, policy_targets)
             value_loss = F.mse_loss(out_value, value_targets)
             loss = policy_loss + value_loss
             
@@ -583,8 +604,8 @@ class AlphaZeroParallel:
             for epoch in tqdm(range(self.args['num_epochs'])):
                 self.train(memory)
             
-            torch.save(self.model.state_dict(), f"NEWmodel_{iteration}.pt")
-            torch.save(self.optimizer.state_dict(), f"NEWoptimizer_{iteration}.pt")
+            torch.save(self.model.state_dict(), f"Models/model_{iteration}.pt")
+            torch.save(self.optimizer.state_dict(), f"Models/optimizer_{iteration}.pt")
 
             print("avg policy loss: ", np.average(policy_loss_arr))
             print("avg value loss: ", np.average(value_loss_arr))
@@ -626,21 +647,24 @@ def testParallel():
     model = NeuralNetwork(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
-    # model.load_state_dict(torch.load('model_2.pt', map_location=device))
-    # optimizer.load_state_dict(torch.load(',optimizer_2.pt', map_location=device)) 
+    # model.load_state_dict(torch.load('Models/model_2.pt', map_location=device))
+    # optimizer.load_state_dict(torch.load(',Models/optimizer_2.pt', map_location=device)) 
     args = {
-        'C': 3,
-        'num_searches': 30,
+        'C': 2,
+        'num_searches': 50,
         'num_iterations': 3,
-        'num_selfPlay_iterations': 15,
-        "num_parallel_games" : 5,
+        'num_selfPlay_iterations': 30,
+        "num_parallel_games" : 10,
         'num_epochs': 4,
-        'batch_size': 64,
-        'temperature': 1.25
+        'batch_size': 32,#64
+        'temperature': 1.25,
+        'dirichlet_epsilon': 0.25,
+        'dirichlet_alpha': 0.2
     }
 
     alphaZero = AlphaZeroParallel(model, optimizer, yahtzee, args)
     alphaZero.learn()
+
 
 policy_loss_arr, value_loss_arr, total_loss_arr = [], [], []
 testParallel()
@@ -652,11 +676,8 @@ state = yahtzee.get_next_state(state,0,-1,(1,1,1,1,1))
 model = NeuralNetwork(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
-modelB = NeuralNetwork(device)
-optimizerB = torch.optim.Adam(model.parameters(), lr=0.001)
-
-model.load_state_dict(torch.load('NEWmodel_2.pt', map_location=device))
-optimizer.load_state_dict(torch.load('NEWoptimizer_2.pt', map_location=device))
+model.load_state_dict(torch.load('Models/model_0.pt', map_location=device))
+optimizer.load_state_dict(torch.load('Models/optimizer_0.pt', map_location=device))
 
 # modelB.load_state_dict(torch.load('model_0.pt', map_location=device))
 # optimizerB.load_state_dict(torch.load(',optimizer_0.pt', map_location=device))
@@ -711,39 +732,3 @@ for i in tqdm(range(num_games)):
 print(1-(np.sum(np.argmax(x[1:,:],axis=1))/num_games))
 print(np.average(x[1:,:],axis=0))
 
-# Bot 0 vs random: winR: 56.76% avg points: [46.771  43.2416]
-# Bot 1 vs random: winR: 55.67% avg points: [45.492  43.3594]
-# Bot 2 vs random: winR: 54.18% avg points: [44.997  43.2718]
-# Bot 3 avg: 44.01 
-# Bot 0 vs Bot 1: Bot 0 winR: 52.20%
-# Bot 0 vs Bot 2: Bot 0 winR: 53.18%
-# Bot 0 vs Bot 3: Bot 0 winR: %
-# Bot 1 vs Bot 0: Bot 1 winR: 47.44%
-# Bot 1 vs Bot 2: Bot 1 winR: 51.11%
-# Bot 1 vs Bot 3: Bot 1 winR: %
-# Bot 2 vs Bot 0: Bot 2 winR: 44.94%
-# Bot 2 vs Bot 1: Bot 2 winR: 48.34%
-# Bot 2 vs Bot 3: Bot 2 winR: %
-# Bot 3 vs Bot 0: Bot 3 winR: 46.54%
-# Bot 3 vs Bot 1: Bot 3 winR: 50.20%
-# Bot 3 vs Bot 2: Bot 3 winR: 48.52%
-
-
-# loss
-# iter0
-# avg policy loss:  2.656407710428448
-# avg value loss:  0.9917500794699653
-# avg total loss:  3.6481577898984128
-# iter 1
-# avg policy loss:  1.8144238078591182
-# avg value loss:  0.9920164685918949
-# avg total loss:  2.806440276451013
-# iter 2
-# avg policy loss:  1.7480426540893814
-# avg value loss:  0.9450568454917395
-# avg total loss:  2.693099499581121
-# iter 3
-# avg policy loss:  1.6938551930671386
-# avg value loss:  0.9953488393563713 
-# avg total loss:  2.68920403242351
-    
