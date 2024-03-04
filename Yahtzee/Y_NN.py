@@ -129,12 +129,17 @@ class Node:
         self.value_sum = 0
 
     def is_fully_expanded(self):
-        return len(self.children) > 0
+        return len(self.children) > 0 or self.ischance
     
     def select(self):
         if self.ischance:#for chance nodes expandle_moves[1] contains the probability distribution 
             dsp = self.expandable_moves[1]
             outcome = r.choices(list(dsp.keys()),list(dsp.values()))[0]
+            if not outcome in self.children:
+                child_state = copy.deepcopy(self.state)
+                child_state[0] = np.array(list(outcome),dtype=int)
+                child = Node(self.game,self.args,child_state,self.active_player,self,None,False,None,self.throw)#add node for all dice outcomes
+                self.children[outcome] = child
             return self.children[outcome]
         
         best_child = None
@@ -164,24 +169,23 @@ class Node:
         return q_value + self.args['C'] * (math.sqrt(self.visit_count) / (child.visit_count + 1)) * child.prior  
      
     def expand(self, policy):
-        if self.ischance:
-            for dices in self.expandable_moves[0]:
+        # if self.ischance:
+        #     for dices in self.expandable_moves[0]:
+        #         child_state = copy.deepcopy(self.state)
+        #         child_state[0] = np.asarray(dices)
+        #         child = Node(self.game,self.args,child_state,self.active_player,self,None,False,None,self.throw)#add node for all dice outcomes
+        #         self.children[''.join(str(x) for x in dices)] = child
+        # else:
+        for action, prob in enumerate(policy):
+            if prob > 0:
                 child_state = copy.deepcopy(self.state)
-                child_state[0] = np.asarray(dices)
-                child = Node(self.game,self.args,child_state,self.active_player,self,None,False,None,self.throw)#add node for all dice outcomes
-                self.children[''.join(str(x) for x in dices)] = child
-        else:
-            for action, prob in enumerate(policy):
-                if prob > 0:
-                    child_state = copy.deepcopy(self.state)
-                    if action <=12:#action is choosing to enter a throw
-                        child_state = self.game.get_next_state(child_state,self.active_player,action)
-                        child = Node(self.game, self.args, child_state, (self.active_player+1)%len(child_state[1]),self, action, True, None, 0, prob)
-                        child.expand(None)
-                    else:#action is choosing a rethrow constellation
-                        child = Node(self.game, self.args, child_state, self.active_player, self, None, True, all_permutations[action-13], self.throw+1, prob)
-                        child.expand(None)
-                    self.children[action] = child#maybe change indices for children in rethrow constellation for better overview if this version is not good
+                if action <=12:#action is choosing to enter a throw
+                    child_state = self.game.get_next_state(child_state,self.active_player,action)
+                    child = Node(self.game, self.args, child_state, (self.active_player+1)%len(child_state[1]),self, action, True, None, 0, prob)
+                else:#action is choosing a rethrow constellation
+                    child = Node(self.game, self.args, child_state, self.active_player, self, None, True, all_permutations[action-len(y.options)], self.throw+1, prob)
+                #child.expand(None)
+                self.children[action] = child
     
     def backpropagate(self,value):###
         self.value_sum += value 
@@ -265,7 +269,7 @@ class AlphaZero:
             if action <=12:
                 state = self.game.get_next_state(state,player,action)
             else:
-                state = self.game.get_next_state(state,player,-1,all_permutations[action-13])
+                state = self.game.get_next_state(state,player,-1,all_permutations[action-len(y.options)])
 
             #check points and terminated
             value, is_terminal = self.game.get_points_and_terminated(state)
@@ -350,52 +354,6 @@ def test():
     alphaZero = AlphaZero(model, optimizer, yahtzee, args)
     alphaZero.learn()
 
-#test()
-    
-
-# args = {
-#     'C': 2,
-#     'num_searches': 300,
-# }
-
-# model 0
-# [43.1215 49.3035]
-# [131. 165.]
-# [ 9. 12.]
-# [38. 45.]
-
-# model B 0 
-# [43.1077 47.121 ]
-# [147. 157.]
-# [6. 8.]
-# [38. 43.]
-    
-# yahtzee = y.Yahtzee(2)
-# state = yahtzee.get_initial_state()
-# state = yahtzee.get_next_state(state,0,0,(1,1,1,1,1))
-
-# model = NeuralNetwork(device)
-# model.load_state_dict(torch.load('Models/model_0.pt', map_location=device))
-
-
-# value, policy = model(torch.tensor(yahtzee.get_encoded_state(state),device=model.device))
-# policy = torch.softmax(policy,0).detach().cpu().numpy()
-# # print(policy)
-# # policy[14:] = 0
-# # policy /= np.sum(policy)
-# print(state)
-# print(policy)
-# print(np.argmax(policy))
-# print(np.argsort(policy))
-
-
-# value, policy = model(torch.tensor(yahtzee.get_encoded_state(state),device=model.device))
-# policy = torch.softmax(policy,0).detach().cpu().numpy()
-# policy[14:] = 0
-# policy /= np.sum(policy)
-# print(policy)
-# print(np.argmax(policy))
-
 class MCTSParallel:
     def __init__(self, game, args, model):
         self.game = game
@@ -426,7 +384,7 @@ class MCTSParallel:
         #     spg.root = Node(self.game,self.args,states[i],player[i],action_taken=last_action[i],throw=throw[i],visit_count=1)
 
 
-        for search in range(self.args['num_searches']):
+        for search in tqdm(range(self.args['num_searches'])):
             for i,spg in enumerate(spGames):
                 spg.node = None
                 node = spg.root
@@ -531,7 +489,7 @@ class AlphaZeroParallel:
                 if action[i] <=12:
                     spg.state = self.game.get_next_state(spg.state,player[i],action[i])
                 else:
-                    spg.state = self.game.get_next_state(spg.state,player[i],-1,all_permutations[action[i]-13])
+                    spg.state = self.game.get_next_state(spg.state,player[i],-1,all_permutations[action[i]-len(y.options)])
 
                 #check points and terminated
                 points, is_terminal = self.game.get_points_and_terminated(spg.state)
@@ -665,70 +623,71 @@ def testParallel():
     alphaZero = AlphaZeroParallel(model, optimizer, yahtzee, args)
     alphaZero.learn()
 
-
 policy_loss_arr, value_loss_arr, total_loss_arr = [], [], []
 testParallel()
 
-yahtzee = y.Yahtzee(2)
-state = yahtzee.get_initial_state()
-state = yahtzee.get_next_state(state,0,-1,(1,1,1,1,1))
-
-model = NeuralNetwork(device)
-optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-
-model.load_state_dict(torch.load('Models/model_0.pt', map_location=device))
-optimizer.load_state_dict(torch.load('Models/optimizer_0.pt', map_location=device))
-
-# modelB.load_state_dict(torch.load('model_0.pt', map_location=device))
-# optimizerB.load_state_dict(torch.load(',optimizer_0.pt', map_location=device))
-
-num_games = 1000
-x = [[0,0]]
-for i in tqdm(range(num_games)):
+play = False
+if play:
     yahtzee = y.Yahtzee(2)
     state = yahtzee.get_initial_state()
     state = yahtzee.get_next_state(state,0,-1,(1,1,1,1,1))
-    player = 0 
-    throw = 0
-    points, is_terminal = yahtzee.get_points_and_terminated(state)
-    while not is_terminal:
-        if player == 0:
-            value,policy = model(torch.tensor(yahtzee.get_encoded_state(state,throw),device=model.device))
-            policy = torch.softmax(policy,0).detach().cpu().numpy()
-            v = yahtzee.get_valid_moves(state,player,throw)
-            for i in range(len(policy)):
-                if i not in v:
-                    policy[i] = 0
-            
-            assert np.sum(policy) > 0
 
-            policy /= np.sum(policy)
-            action = np.argmax(policy)
-        else:
-            v = yahtzee.get_valid_moves(state,player,throw)
-            action = r.choice(v)
-            # value,policy = modelB(torch.tensor(yahtzee.get_encoded_state(state,throw),device=model.device))
-            # policy = torch.softmax(policy,0).detach().cpu().numpy()
-            # v = yahtzee.get_valid_moves(state,player,throw)
-            # for i in range(len(policy)):
-            #     if i not in v:
-            #         policy[i] = 0
-            
-            # assert np.sum(policy) > 0
+    model = NeuralNetwork(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
-            # policy /= np.sum(policy)
-            # action = np.argmax(policy)
-        if action > 12:
-            state = yahtzee.get_next_state(state,player,-1,all_permutations[action-13])
-            throw += 1
-        else:
-            state = yahtzee.get_next_state(state,player,action)
-            state = yahtzee.get_next_state(state,player,-1,(1,1,1,1,1))
-            player = (player + 1) % len(state[1])
-            throw = 0
-            points, is_terminal = yahtzee.get_points_and_terminated(state)
-    x = np.append(x,[points],axis=0)
+    model.load_state_dict(torch.load('Models/model_0.pt', map_location=device))
+    optimizer.load_state_dict(torch.load('Models/optimizer_0.pt', map_location=device))
 
-print(1-(np.sum(np.argmax(x[1:,:],axis=1))/num_games))
-print(np.average(x[1:,:],axis=0))
+    # modelB.load_state_dict(torch.load('model_0.pt', map_location=device))
+    # optimizerB.load_state_dict(torch.load(',optimizer_0.pt', map_location=device))
+
+    num_games = 1000
+    x = [[0,0]]
+    for i in tqdm(range(num_games)):
+        yahtzee = y.Yahtzee(2)
+        state = yahtzee.get_initial_state()
+        state = yahtzee.get_next_state(state,0,-1,(1,1,1,1,1))
+        player = 0 
+        throw = 0
+        points, is_terminal = yahtzee.get_points_and_terminated(state)
+        while not is_terminal:
+            if player == 0:
+                value,policy = model(torch.tensor(yahtzee.get_encoded_state(state,throw),device=model.device))
+                policy = torch.softmax(policy,0).detach().cpu().numpy()
+                v = yahtzee.get_valid_moves(state,player,throw)
+                for i in range(len(policy)):
+                    if i not in v:
+                        policy[i] = 0
+                
+                assert np.sum(policy) > 0
+
+                policy /= np.sum(policy)
+                action = np.argmax(policy)
+            else:
+                v = yahtzee.get_valid_moves(state,player,throw)
+                action = r.choice(v)
+                # value,policy = modelB(torch.tensor(yahtzee.get_encoded_state(state,throw),device=model.device))
+                # policy = torch.softmax(policy,0).detach().cpu().numpy()
+                # v = yahtzee.get_valid_moves(state,player,throw)
+                # for i in range(len(policy)):
+                #     if i not in v:
+                #         policy[i] = 0
+                
+                # assert np.sum(policy) > 0
+
+                # policy /= np.sum(policy)
+                # action = np.argmax(policy)
+            if action > 12:
+                state = yahtzee.get_next_state(state,player,-1,all_permutations[action-len(y.options)])
+                throw += 1
+            else:
+                state = yahtzee.get_next_state(state,player,action)
+                state = yahtzee.get_next_state(state,player,-1,(1,1,1,1,1))
+                player = (player + 1) % len(state[1])
+                throw = 0
+                points, is_terminal = yahtzee.get_points_and_terminated(state)
+        x = np.append(x,[points],axis=0)
+
+    print(1-(np.sum(np.argmax(x[1:,:],axis=1))/num_games))
+    print(np.average(x[1:,:],axis=0))
 

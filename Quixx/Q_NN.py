@@ -86,12 +86,17 @@ class Node:
         self.value_sum = 0
 
     def is_fully_expanded(self):        
-        return len(self.children) > 0
+        return len(self.children) > 0 or self.ischance
 
     def select(self):
         if self.ischance:
             dsp = expandable_moves
             outcome = r.choices(list(dsp.keys()),list(dsp.values()))[0]
+            if not outcome in self.children:
+                child_state = copy.deepcopy(self.state)
+                child_state[0] = np.array(list(outcome),dtype=int)
+                child = Node(self.game,self.args,child_state,self.active_player,self,False,iswhiteturn=True)
+                self.children[outcome] = child
             return self.children[outcome]
         
         best_child = None
@@ -119,31 +124,32 @@ class Node:
     def expand(self,policy):
         #expansion for chance nodes
         #expansion for white dice and coloured dice
-        if self.ischance:
-            for dices in expandable_moves:
+        # if self.ischance:
+        #     for dices in expandable_moves:
+        #         child_state = copy.deepcopy(self.state)
+        #         child_state[0] = np.array([int(x) for x in dices])
+        #         child = Node(self.game,self.args,child_state,(self.active_player+1)%len(self.state[-1]),self,iswhiteturn=True)
+        #         index = ''.join(str(x) for x in dices)
+        #         self.children[index] = child
+        # else:
+        last_turn = not self.iswhiteturn
+        white_t = self.parent is None or self.parent.ischance
+        for action, prob in enumerate(policy):
+            if prob > 0:
                 child_state = copy.deepcopy(self.state)
-                child_state[0] = np.array([int(x) for x in dices])
-                child = Node(self.game,self.args,child_state,(self.active_player+1)%len(self.state[-1]),self,iswhiteturn=True)
-                index = ''.join(str(x) for x in dices)
-                self.children[index] = child
-        else:
-            last_turn = (self.iswhiteturn == False)
-            for action, prob in enumerate(policy):
-                if prob > 0:
-                    child_state = copy.deepcopy(self.state)
-                    if last_turn and (action + self.active_player_action == 0):
-                        act = -1
-                    else:
-                        act = action
-                    child_state = self.game.get_next_state(child_state,self.active_player,act)
-                    
-                    #acton memory
-                    act_mem = action if self.parent is None or self.parent.ischance else self.active_player_action
+                if last_turn and (action + self.active_player_action == 0):
+                    act = -1
+                else:
+                    act = action
+                child_state = self.game.get_next_state(child_state,self.active_player,act)
+                
+                #acton memory
+                act_mem = action if self.parent is None or self.parent.ischance else self.active_player_action
 
-                    child = Node(self.game, self.args, child_state,(self.active_player+1)%len(child_state[1]),self, act_mem, last_turn, False, prob)
-                    if last_turn:
-                        child.expand(None)
-                    self.children[action] = child
+                child = Node(self.game, self.args, child_state,(self.active_player+1)%len(child_state[1]),self, act_mem, last_turn, white_t, prob)
+                # if last_turn:
+                #     child.expand(None)
+                self.children[action] = child
 
     def backpropagate(self,value):
         node = self
@@ -323,25 +329,6 @@ def test():
     alphaZero = AlphaZero(model, optimizer, quixx, args)
     alphaZero.learn()
 
-#test()
-
-# model = NeuralNetwork(device)
-# model.load_state_dict(torch.load('model_0.pt', map_location=device))
-# model.eval()    
-# quixx = simpleQ.Quixx()
-# state = quixx.get_initial_state()
-# state[0] = np.array([1,2,3,5])
-# args = {
-#     'C': 2,
-#     'num_searches': 1000
-# }
-# mcts = MCTS(quixx, args, model)
-# action = mcts.search(state,0)
-# print(quixx.get_valid_moves(state,0,True))
-# print(state)
-# print(np.argmax(action))
-# print(action)
-
 class MCTSParallel:
     def __init__(self, game, args, model):
         self.game = game
@@ -354,7 +341,7 @@ class MCTSParallel:
         for i, spg in enumerate(spGames):
             spg.root = Node(self.game,self.args,states[i],player[i],None,active_player_action[i],False,iswhiteturn[i],visit_count=1)
 
-        for search in range(self.args['num_searches']):
+        for search in tqdm(range(self.args['num_searches'])):
             for i, spg in enumerate(spGames):
                 spg.node = None
                 node = spg.root

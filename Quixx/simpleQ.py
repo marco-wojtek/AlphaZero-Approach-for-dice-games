@@ -20,7 +20,7 @@ class Quixx:
             np.arange(12,1,-1)
             ])
         return np.array([
-                np.zeros(4), 
+                np.zeros(4,dtype=int), 
                 arr.copy(),
                 arr.copy(),
                 np.zeros(2)],dtype=object)
@@ -444,5 +444,3 @@ def calc_dice_state_probabilities(all_possible_dice_states): #turns number of al
 # print(state)
 # encoded = quixx.get_encoded_state(state)
 # print(encoded, "\n Length of encoded state: ", len(encoded))
-        
-

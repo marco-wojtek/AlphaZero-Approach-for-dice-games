@@ -27,18 +27,17 @@ def full_house(dice):
             i[1] = True
     return i[0] and i[1]
 
-#returns two booleans wether dice contains a small or large straight
+#returns two booleans wether dice contains a small or large straight; straight is defined as an ascending order in the dice which is at least 4 values long or for less than 5 dice at least 3 (for 4 dice)
 def straight(dice):
     sorted_dice = np.unique(dice)
     length = len(sorted_dice)
-    #if sorted dices are only 3 or less distinct values no straight is possible
-    if length < 4:
+    if length < (len(dice)-1):
         return [False,False]
     cnt_longest_seq = 1
     for n in range(1,length):
         if sorted_dice[n] == sorted_dice[n-1]+1:
             cnt_longest_seq += 1
-    return [True,False] if cnt_longest_seq == 4 else [True,True] if cnt_longest_seq == 5 else [False,False] #length can only be 4 or 5
+    return [True,False] if cnt_longest_seq == (len(dice)-1) else [True,True] if cnt_longest_seq == len(dice) else [False,False] #length can only be 4 or 5
 
 #all points can be set/adjusted here
 count_eyes = lambda x, i: np.count_nonzero(x==i)*i
@@ -47,7 +46,7 @@ four_same = lambda x: np.sum(x) if any([np.count_nonzero(x==i)==4  for i in rang
 fullHouse = lambda x: 25 if full_house(x) else 0
 small_straight = lambda x: 30 if straight(x)[0] else 0    
 large_straight = lambda x: 40 if straight(x)[1] else 0
-yahtzee = lambda x: 50 if np.count_nonzero(x==x[0]) == 5 else 0
+yahtzee = lambda x: 50 if np.count_nonzero(x==x[0]) == len(x) else 0
 chance = lambda x: np.sum(x)
 
 option_names = np.array([
@@ -87,10 +86,10 @@ class Yahtzee: #sorting the dice arrays changes the number of possible dice stat
         self.player_num = num_players
 
     def get_valid_moves(self,state,player,rethrow):
-        all_actions = np.ones(44)
+        all_actions = np.ones(len(options)+len(all_permutations))
         all_actions[np.where(state[1][player] != -1)[0]] = 0
         if rethrow == 2:
-            all_actions[13:] = 0
+            all_actions[len(options):] = 0
         return np.where(all_actions)[0]
    
     def get_next_state(self,state,player,action,re_dice=None):
@@ -104,7 +103,7 @@ class Yahtzee: #sorting the dice arrays changes the number of possible dice stat
 
     def get_initial_state(self):
         state = np.array([
-            np.zeros(5),
+            np.zeros(5,dtype=int),
             np.ones((self.player_num,len(options))) * -1
         ],dtype=object)
         return state
@@ -137,12 +136,10 @@ class Yahtzee: #sorting the dice arrays changes the number of possible dice stat
         return encoded
     
     def get_encoded_states(self,states,throws):
-        stack = np.array([np.zeros(64)])#77
-        i = 0
-        for st in states:
-            stack = np.append(stack,[self.get_encoded_state(st,throws[i])],axis=0)
-            i += 1
-        return stack[1:]
+        stack = np.array([self.get_encoded_state(states[0],throws[0])])
+        for i in range(1,len(states)):
+            stack = np.append(stack,[self.get_encoded_state(states[i],throws[i])],axis=0)
+        return stack
 
 def get_one_hot(num,size):
     one_hot = np.zeros(size)
@@ -240,7 +237,7 @@ def classic_greedy_bot(game,state,player,valid_actions):#Greedy bot which simula
 # print(np.median(x,axis=0))
 
 all_possible_dice_states = list(iter.product(range(1,7),repeat=5))#7776
-sorted_possible_dice_states = list(iter.combinations_with_replacement(range(1,7),r=5))#252
+sorted_possible_dice_states = list(iter.combinations_with_replacement(range(1,7),r=5))#252 #70 if 4xD5
 def calc_dice_state_probabilities(possible_dice_states):
     dice_state_probabilities = {}
     for d_state in possible_dice_states:
@@ -461,8 +458,8 @@ class MCTS:
             except:
                 index = np.argwhere([perm == tuple([int(i) for a,i in enumerate(child_key)]) for perm in all_permutations])
                 action_probs[index] += child_value.visit_count
-        print(action_probs)
-        print("depth:",self.calc_depth(root))
+        # print(action_probs)
+        # print("depth:",self.calc_depth(root))
         #self.best_child(root)
         action_probs /= np.sum(action_probs)
         return action_probs
@@ -519,5 +516,3 @@ class MCTS:
 #         print(np.argsort(mcts_probs))
 #     else:
 #         action = random_bot_action(yahtzee,state,player,yahtzee.get_valid_moves(state,player))
-    
-
