@@ -117,24 +117,10 @@ class Quixx:
         return encoded
     
     def get_encoded_states(self,states):
-        stack = np.array([np.zeros(122)])
-        for st in states:
-            encoded = np.array([])
-            for num in st[0]:
-                #print(num," encoded as: ",get_one_hot(num,6))
-                encoded = np.append(encoded,get_one_hot(num,6))
-            for i in range(1,len(st)-1):
-                for arr in st[i]:
-                    #print(arr," encoded as: ",arr==1)
-                    encoded = np.append(encoded,arr==1)
-                    #print(arr," encoded as: ",arr>1)
-                    encoded = np.append(encoded,arr>1)
-            for err in st[-1]:
-                #print(err," encoded as: ",get_one_hot(err+1,5))
-                encoded = np.append(encoded,get_one_hot(err+1,5))
-
-            stack = np.append(stack,[encoded],axis=0)
-        return stack[1:]
+        stack = np.array([self.get_encoded_state(states[0])])
+        for i in range(1,len(states)):
+            stack = np.append(stack,[self.get_encoded_state(states[i])],axis=0)
+        return stack
 
 
 def get_one_hot(num,size):

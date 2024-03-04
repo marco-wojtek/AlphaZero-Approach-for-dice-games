@@ -25,6 +25,10 @@ device = (
 
 print(f"Using {device} device")
 
+#hyper parameters
+num_of_dice = 4
+num_of_sides = 5
+
 class NeuralNetwork(nn.Module):
     def __init__(self, device):
         super().__init__()
@@ -37,11 +41,11 @@ class NeuralNetwork(nn.Module):
             # nn.Linear(128, 128,dtype=float),
             # nn.ReLU(),
             # nn.Linear(128, 44,dtype=float)
-            nn.Linear(64, 128,dtype=float),
+            nn.Linear(50, 128,dtype=float),
             nn.ReLU(),
             nn.Linear(128, 64,dtype=float),
             nn.ReLU(),
-            nn.Linear(64, 44,dtype=float)
+            nn.Linear(64, 26,dtype=float)
         )
 
         self.valueHead = nn.Sequential(
@@ -55,7 +59,7 @@ class NeuralNetwork(nn.Module):
             # nn.ReLU(),
             # nn.Linear(64, 1,dtype=float),
             # nn.Tanh()
-            nn.Linear(64, 64,dtype=float),
+            nn.Linear(50, 64,dtype=float),
             nn.ReLU(),
             nn.Linear(64, 32,dtype=float),
             nn.ReLU(),
@@ -70,9 +74,9 @@ class NeuralNetwork(nn.Module):
         value = self.valueHead(x)
         return value, policy
     
-all_permutations = list(iter.product(range(0,2),repeat=5))[1:]#31
-all_possible_dice_states = list(iter.product(range(1,7),repeat=5))#7776
-sorted_possible_dice_states = list(iter.combinations_with_replacement(range(1,7),r=5))#252
+all_permutations = list(iter.product(range(0,2),repeat=num_of_dice))[1:]
+all_possible_dice_states = list(iter.product(range(1,num_of_sides+1),repeat=num_of_dice))
+sorted_possible_dice_states = list(iter.combinations_with_replacement(range(1,num_of_sides+1),r=num_of_dice))
 def calc_dice_state_probabilities(possible_dice_states):
     dice_state_probabilities = {}
     for d_state in possible_dice_states:
@@ -179,7 +183,7 @@ class Node:
         for action, prob in enumerate(policy):
             if prob > 0:
                 child_state = copy.deepcopy(self.state)
-                if action <=12:#action is choosing to enter a throw
+                if action <=10:#action is choosing to enter a throw
                     child_state = self.game.get_next_state(child_state,self.active_player,action)
                     child = Node(self.game, self.args, child_state, (self.active_player+1)%len(child_state[1]),self, action, True, None, 0, prob)
                 else:#action is choosing a rethrow constellation
@@ -233,7 +237,7 @@ class MCTS:
                 value = value.item()
                 node.expand(policy)
             node.backpropagate(value)
-        action_probs = np.zeros(44)
+        action_probs = np.zeros(26)
         for child_key, child_value in root.children.items():
             action_probs[child_key] = child_value.visit_count
 
@@ -253,7 +257,7 @@ class AlphaZero:
         memory = []
         player = 0
         state = self.game.get_initial_state()
-        state = self.game.get_next_state(state,player,-1,(1,1,1,1,1))
+        state = self.game.get_next_state(state,player,-1,(1,1,1,1))
 
         action = None
         throw = 0
@@ -266,7 +270,7 @@ class AlphaZero:
             temperature_action_probs = action_probs ** (1 / self.args['temperature'])#squishes the values together to allow more exploration
             action = r.choices(np.arange(len(action_probs)),temperature_action_probs)[0]
             #print("-------------------------------")
-            if action <=12:
+            if action <=10:
                 state = self.game.get_next_state(state,player,action)
             else:
                 state = self.game.get_next_state(state,player,-1,all_permutations[action-len(y.options)])
@@ -286,9 +290,9 @@ class AlphaZero:
                 return returnMemory
 
             #change turn
-            if action<=12:
+            if action<=10:
                 player = (player+1)%len(state[1])
-                state = self.game.get_next_state(state,player,0,(1,1,1,1,1))
+                state = self.game.get_next_state(state,player,0,(1,1,1,1))
                 throw = 0
             else:
                 throw += 1
@@ -384,7 +388,7 @@ class MCTSParallel:
         #     spg.root = Node(self.game,self.args,states[i],player[i],action_taken=last_action[i],throw=throw[i],visit_count=1)
 
 
-        for search in tqdm(range(self.args['num_searches'])):
+        for search in range(self.args['num_searches']):
             for i,spg in enumerate(spGames):
                 spg.node = None
                 node = spg.root
@@ -420,35 +424,13 @@ class MCTSParallel:
                 for k in range(len(spg_policy)):
                     if k not in valid_moves:
                         spg_policy[k] = 0
-                
-                # if np.sum(spg_policy) == 0:
-                #     print(states)
-                #     print("node state: ",node.state)
-                #     print(len(spGames))
-                # print(value)
-                # print(spg_policy)
-                # print(len(spg_policy))
-                # print(np.argsort(spg_policy))
+
                 assert np.sum(spg_policy) > 0
-                # print(i)
-                # print(node.state)
-                    # print("active_player: ",node.active_player)
-                    # print("action taken: ", node.action_taken)
-                    # print("throw: ",node.throw)
-                    # print(self.game.get_valid_moves(node.state,node.active_player,node.throw))
-                    # print(spg_policy)
-                    # print("-------------------")
+
                 spg_policy /= np.sum(spg_policy)
 
                 node.expand(spg_policy)
                 node.backpropagate(spg_value)
-        # print("last_actions: ",last_action)
-        # print(states)
-        # print("----------------------")
-            # d = {}
-            # for child_key, child_value in spg.root.children.items():
-            #     d[child_key] = child_value.visit_count
-            # print(d)
                 
 class AlphaZeroParallel:
     def __init__(self, model, optimizer, game, args):
@@ -469,24 +451,21 @@ class AlphaZeroParallel:
         throw = list(np.zeros(len(spGames),dtype=int))
         while len(spGames) > 0:
             states = np.stack([spg.state for spg in spGames])
-            #print(states, "\n action: ",action , "\n -------------------------")
             self.mcts.search(states,player,spGames,action,throw)
             for i in range(len(spGames))[::-1]:
                 spg = spGames[i]
 
-                action_probs = np.zeros(44)
+                action_probs = np.zeros(26)
                 for child_key, child_value in spg.root.children.items():
                     action_probs[child_key] = child_value.visit_count
 
                 action_probs /= np.sum(action_probs)
-                # print("action_props: ", action_probs)
                 
                 spg.memory.append((spg.root.state,action_probs,player[i]))
 
                 temperature_action_probs = action_probs ** (1 / self.args['temperature'])#squishes the values together to allow more exploration
                 action[i] = r.choices(np.arange(len(action_probs)),temperature_action_probs)[0]
-                #print("-------------------------------")
-                if action[i] <=12:
+                if action[i] <=10:
                     spg.state = self.game.get_next_state(spg.state,player[i],action[i])
                 else:
                     spg.state = self.game.get_next_state(spg.state,player[i],-1,all_permutations[action[i]-len(y.options)])
@@ -511,9 +490,9 @@ class AlphaZeroParallel:
                     continue
 
                 #change turn
-                if action[i]<=12:
+                if action[i]<=10:
                     player[i] = (player[i]+1)%len(spg.state[1])
-                    spg.state = self.game.get_next_state(spg.state,player[i],-1,(1,1,1,1,1))
+                    spg.state = self.game.get_next_state(spg.state,player[i],-1,(1,1,1,1))
                     throw[i] = 0
                 else:
                     throw[i] += 1
@@ -561,44 +540,37 @@ class AlphaZeroParallel:
             self.model.train()
             for epoch in tqdm(range(self.args['num_epochs'])):
                 self.train(memory)
-            
-            torch.save(self.model.state_dict(), f"Models/model_{iteration}.pt")
-            torch.save(self.optimizer.state_dict(), f"Models/optimizer_{iteration}.pt")
 
-            print("avg policy loss: ", np.average(policy_loss_arr))
-            print("avg value loss: ", np.average(value_loss_arr))
-            print("avg total loss: ", np.average(total_loss_arr))
-            policy_loss_arr.clear()
-            value_loss_arr.clear()
-            total_loss_arr.clear()
+                with open('Losses/policy_loss.txt', 'a') as f:
+                    f.write('%f \n' % np.average(policy_loss_arr))
+                    f.close()
+                with open('Losses/value_loss.txt', 'a') as f:
+                    f.write('%f \n' % np.average(value_loss_arr))
+                    f.close()
+                with open('Losses/total_loss.txt', 'a') as f:
+                    f.write('%f \n' % np.average(total_loss_arr))
+                    f.close()
+                policy_loss_arr.clear()
+                value_loss_arr.clear()
+                total_loss_arr.clear()
+            
+            torch.save(self.model.state_dict(), f"Models/mmodel_{iteration}.pt")
+            torch.save(self.optimizer.state_dict(), f"Models/moptimizer_{iteration}.pt")
+
+            # print("avg policy loss: ", np.average(policy_loss_arr))
+            # print("avg value loss: ", np.average(value_loss_arr))
+            # print("avg total loss: ", np.average(total_loss_arr))
+            # policy_loss_arr.clear()
+            # value_loss_arr.clear()
+            # total_loss_arr.clear()
 
 class SPG:
     def __init__(self,game):
         self.state = game.get_initial_state()
-        self.state = game.get_next_state(self.state,0,-1,(1,1,1,1,1))
+        self.state = game.get_next_state(self.state,0,-1,(1,1,1,1))
         self.memory = []
         self.root = None
         self.node = None
-
-# def testParallel():
-#     yahtzee = y.Yahtzee(2)
-#     model = NeuralNetwork(device)
-#     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-#     args = {
-#         'C': 3,
-#         'num_searches': 80,
-#         'num_iterations': 2,
-#         'num_selfPlay_iterations': 100,
-#         "num_parallel_games" : 50,
-#         'num_epochs': 4,
-#         'batch_size': 64,
-#         'temperature': 1.25
-#     }
-
-#     alphaZero = AlphaZeroParallel(model, optimizer, yahtzee, args)
-#     alphaZero.learn()
-
-# testParallel()
 
 def testParallel():
     yahtzee = y.Yahtzee(2)
@@ -608,14 +580,14 @@ def testParallel():
     # model.load_state_dict(torch.load('Models/model_2.pt', map_location=device))
     # optimizer.load_state_dict(torch.load(',Models/optimizer_2.pt', map_location=device)) 
     args = {
-        'C': 2,
-        'num_searches': 50,
+        'C': 2.5,
+        'num_searches': 250,
         'num_iterations': 3,
-        'num_selfPlay_iterations': 30,
-        "num_parallel_games" : 10,
-        'num_epochs': 4,
-        'batch_size': 32,#64
-        'temperature': 1.25,
+        'num_selfPlay_iterations': 150,
+        "num_parallel_games" : 50,
+        'num_epochs': 6,
+        'batch_size': 64,
+        'temperature': 1.3,
         'dirichlet_epsilon': 0.25,
         'dirichlet_alpha': 0.2
     }
@@ -630,7 +602,7 @@ play = False
 if play:
     yahtzee = y.Yahtzee(2)
     state = yahtzee.get_initial_state()
-    state = yahtzee.get_next_state(state,0,-1,(1,1,1,1,1))
+    state = yahtzee.get_next_state(state,0,-1,(1,1,1,1))
 
     model = NeuralNetwork(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
@@ -646,7 +618,7 @@ if play:
     for i in tqdm(range(num_games)):
         yahtzee = y.Yahtzee(2)
         state = yahtzee.get_initial_state()
-        state = yahtzee.get_next_state(state,0,-1,(1,1,1,1,1))
+        state = yahtzee.get_next_state(state,0,-1,(1,1,1,1))
         player = 0 
         throw = 0
         points, is_terminal = yahtzee.get_points_and_terminated(state)
@@ -677,12 +649,12 @@ if play:
 
                 # policy /= np.sum(policy)
                 # action = np.argmax(policy)
-            if action > 12:
+            if action > 10:
                 state = yahtzee.get_next_state(state,player,-1,all_permutations[action-len(y.options)])
                 throw += 1
             else:
                 state = yahtzee.get_next_state(state,player,action)
-                state = yahtzee.get_next_state(state,player,-1,(1,1,1,1,1))
+                state = yahtzee.get_next_state(state,player,-1,(1,1,1,1))
                 player = (player + 1) % len(state[1])
                 throw = 0
                 points, is_terminal = yahtzee.get_points_and_terminated(state)

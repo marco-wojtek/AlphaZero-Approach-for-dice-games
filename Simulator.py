@@ -22,4 +22,4 @@ def simulation(game, num_searches, num_games):
 
     plt.show()
 
- 
+   

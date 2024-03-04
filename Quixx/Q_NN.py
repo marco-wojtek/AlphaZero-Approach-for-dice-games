@@ -47,15 +47,19 @@ class NeuralNetwork(nn.Module):
         self.device = device 
         #sqrt(input layer nodes * output layer nodes)
         self.policyHead = nn.Sequential(
-            nn.Linear(122, 52,dtype=float),
+            nn.Linear(122, 128,dtype=float),
             nn.ReLU(),
-            nn.Linear(52, 23,dtype=float)
+            nn.Linear(128, 128,dtype=float),
+            nn.ReLU(),
+            nn.Linear(128, 23,dtype=float)
         )
 
         self.valueHead = nn.Sequential(
-            nn.Linear(122, 11,dtype=float),
+            nn.Linear(122, 128,dtype=float),
             nn.ReLU(),
-            nn.Linear(11, 1,dtype=float),
+            nn.Linear(128, 64,dtype=float),
+            nn.ReLU(),
+            nn.Linear(64, 1,dtype=float),
             nn.Tanh()
         )
 
@@ -338,10 +342,30 @@ class MCTSParallel:
     #returns the probabilities for the possible actions
     @torch.no_grad()
     def search(self,states,spGames,player,active_player_action,iswhiteturn):
-        for i, spg in enumerate(spGames):
-            spg.root = Node(self.game,self.args,states[i],player[i],None,active_player_action[i],False,iswhiteturn[i],visit_count=1)
 
-        for search in tqdm(range(self.args['num_searches'])):
+        #dirichlet variant
+        _, policy = self.model(torch.tensor(self.game.get_encoded_states(states),device=self.model.device))
+        policy = torch.softmax(policy,1).detach().cpu().numpy()
+        policy = (1 - self.args['dirichlet_epsilon']) * policy + self.args['dirichlet_epsilon'] * np.random.dirichlet([self.args['dirichlet_alpha']] * len(policy[0]), size=policy.shape[0])
+        for i,spg in enumerate(spGames):
+            spg.root = Node(self.game,self.args,states[i],player[i],None,active_player_action[i],False,iswhiteturn[i],visit_count=1)
+            spg_policy = policy[i]
+
+            node = spg.root
+            valid_moves = self.game.get_valid_moves(node.state,node.active_player,node.iswhiteturn)
+            for k in range(len(spg_policy)):
+                if k not in valid_moves:
+                    spg_policy[k] = 0
+
+            spg_policy /= np.sum(spg_policy)
+
+            spg.root.expand(spg_policy)
+
+
+        # for i, spg in enumerate(spGames):
+        #     spg.root = Node(self.game,self.args,states[i],player[i],None,active_player_action[i],False,iswhiteturn[i],visit_count=1)
+
+        for search in range(self.args['num_searches']):
             for i, spg in enumerate(spGames):
                 spg.node = None
                 node = spg.root
@@ -405,13 +429,6 @@ class AlphaZeroParallel:
         temp_player = len(spGames)*[0]
         while len(spGames) > 0:
             states = np.stack([spg.state for spg in spGames])
-            #print("player: ", temp_player, "is white turn: ", white_turn, "\n")
-            #print(state,"\n action: ",action , "\n -------------------------")
-            # print(act_mem)
-            # print(white_turn)
-            # print(temp_player)
-            # print(states)
-            # print("---------------------")
             self.mcts.search(states,spGames,player,act_mem,white_turn)
             for i in range(len(spGames))[::-1]:
                 spg = spGames[i]
@@ -479,7 +496,7 @@ class AlphaZeroParallel:
             
             out_value, out_policy = self.model(state)
             #print(out_policy.shape,"\n",policy_targets.shape,"\n",out_value.shape,"\n",value_targets.shape,"\n")
-            assert torch.all(value_targets>=-1 | value_targets<=1).item() ###delete tanh
+            assert torch.all(value_targets>=-1).item() and torch.all(value_targets<=1).item()
             out_policy[policy_targets==0] = -torch.inf
             policy_loss = -torch.nan_to_num(F.log_softmax(out_policy, -1) * policy_targets).sum(-1).mean()
             #policy_loss = F.cross_entropy(out_policy, policy_targets)
@@ -505,15 +522,28 @@ class AlphaZeroParallel:
             self.model.train()
             for epoch in tqdm(range(self.args['num_epochs'])):
                 self.train(memory)
+
+                with open('Losses/policy_loss.txt', 'a') as f:
+                    f.write('%f \n' % np.average(policy_loss_arr))
+                    f.close()
+                with open('Losses/value_loss.txt', 'a') as f:
+                    f.write('%f \n' % np.average(value_loss_arr))
+                    f.close()
+                with open('Losses/total_loss.txt', 'a') as f:
+                    f.write('%f \n' % np.average(total_loss_arr))
+                    f.close()
+                policy_loss_arr.clear()
+                value_loss_arr.clear()
+                total_loss_arr.clear()
             
             torch.save(self.model.state_dict(), f"Models/model_{iteration}.pt")
             torch.save(self.optimizer.state_dict(), f"Models/optimizer_{iteration}.pt")
-            print("avg policy loss: ", np.average(policy_loss_arr))
-            print("avg value loss: ", np.average(value_loss_arr))
-            print("avg total loss: ", np.average(total_loss_arr))
-            policy_loss_arr.clear()
-            value_loss_arr.clear()
-            total_loss_arr.clear()
+            # print("avg policy loss: ", np.average(policy_loss_arr))
+            # print("avg value loss: ", np.average(value_loss_arr))
+            # print("avg total loss: ", np.average(total_loss_arr))
+            # policy_loss_arr.clear()
+            # value_loss_arr.clear()
+            # total_loss_arr.clear()
 
 class SPG:
     def __init__(self,game):
@@ -529,14 +559,16 @@ def testParallel():
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
     args = {
-        'C': 3,
-        'num_searches': 800,
+        'C': 2.5,
+        'num_searches': 2500,
         'num_iterations': 3,
-        'num_selfPlay_iterations': 200,
-        'num_parallel_games': 50,
-        'num_epochs': 4,
+        'num_selfPlay_iterations': 400,
+        'num_parallel_games': 100,
+        'num_epochs': 6,
         'batch_size': 64, 
-        'temperature':1.25
+        'temperature':1.3,
+        'dirichlet_epsilon': 0.25,
+        'dirichlet_alpha': 0.2
     }
 
     alphaZero = AlphaZeroParallel(model, optimizer, quixx, args)

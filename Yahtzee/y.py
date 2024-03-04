@@ -7,12 +7,15 @@ import copy
 from tqdm import tqdm
 import math
 
+#hyper parameters
+num_of_dice = 4
+num_of_sides = 5
 #returns the dice with changed values; to_rethow must be a list with True or False values
 def rethrow(dice, to_rethrow):
     assert(len(dice) == len(to_rethrow))
     for i in range(len(dice)):
         if to_rethrow[i]:
-            dice[i] = random.randint(1,6) 
+            dice[i] = random.randint(1,num_of_sides) 
     return np.sort(np.asarray(dice,dtype=int))
 
 #all functions to calculate how many points the dice returns in the specific category
@@ -20,12 +23,13 @@ def rethrow(dice, to_rethrow):
 #return True if dice contains a full House
 def full_house(dice):
     i = [False,False]
-    for n in range(1,7):
-        if np.count_nonzero(dice==n) == 3:
+    for n in range(1,num_of_sides+1):
+        if not i[0] and np.count_nonzero(dice==n) == 2:
             i[0] = True
         elif np.count_nonzero(dice==n) == 2:
             i[1] = True
-    return i[0] and i[1]
+            return True
+    return False
 
 #returns two booleans wether dice contains a small or large straight; straight is defined as an ascending order in the dice which is at least 4 values long or for less than 5 dice at least 3 (for 4 dice)
 def straight(dice):
@@ -41,12 +45,12 @@ def straight(dice):
 
 #all points can be set/adjusted here
 count_eyes = lambda x, i: np.count_nonzero(x==i)*i
-three_same = lambda x: np.sum(x) if any([np.count_nonzero(x==i)==3  for i in range(1,6)]) else 0
-four_same = lambda x: np.sum(x) if any([np.count_nonzero(x==i)==4  for i in range(1,6)]) else 0
-fullHouse = lambda x: 25 if full_house(x) else 0
-small_straight = lambda x: 30 if straight(x)[0] else 0    
-large_straight = lambda x: 40 if straight(x)[1] else 0
-yahtzee = lambda x: 50 if np.count_nonzero(x==x[0]) == len(x) else 0
+three_same = lambda x: np.sum(x) if any([np.count_nonzero(x==i)==3  for i in range(1,num_of_sides)]) else 0
+four_same = lambda x: np.sum(x) if any([np.count_nonzero(x==i)==4  for i in range(1,num_of_sides)]) else 0
+fullHouse = lambda x: 16 if full_house(x) else 0
+small_straight = lambda x: 19 if straight(x)[0] else 0    
+large_straight = lambda x: 26 if straight(x)[1] else 0
+yahtzee = lambda x: 33 if np.count_nonzero(x==x[0]) == len(x) else 0
 chance = lambda x: np.sum(x)
 
 option_names = np.array([
@@ -70,9 +74,9 @@ options = np.array([lambda x: count_eyes(x,i=1),#0
            lambda x: count_eyes(x,i=3),#2
            lambda x: count_eyes(x,i=4),#3
            lambda x: count_eyes(x,i=5),#4
-           lambda x: count_eyes(x,i=6),#5
+           #lambda x: count_eyes(x,i=6),#5
            three_same,#6
-           four_same,#7
+           #four_same,#7
            fullHouse,#8
            small_straight,#9
            large_straight,#10
@@ -103,7 +107,7 @@ class Yahtzee: #sorting the dice arrays changes the number of possible dice stat
 
     def get_initial_state(self):
         state = np.array([
-            np.zeros(5,dtype=int),
+            np.zeros(num_of_dice,dtype=int),
             np.ones((self.player_num,len(options))) * -1
         ],dtype=object)
         return state
@@ -111,7 +115,9 @@ class Yahtzee: #sorting the dice arrays changes the number of possible dice stat
     def get_points_and_terminated(self,state):
         points = np.zeros(len(state[1]))
         for i in range(len(state[1])):
-            bonus = 35 if np.sum(state[1][i][:6][state[1][i][:6]!=-1]) >= 63 else 0 #Bonus if the sum of the first 6 is greater than 63
+            #the bonus is 1/3 of max points of the upper half; to get the bonus the player needs 50% of max points per slot
+            #for 4 D5: bonus = 1/3 * (4+8+12+16+20) = 20, limit = 2+4+6+8+10 = 30
+            bonus = 20 if np.sum(state[1][i][:num_of_sides][state[1][i][:num_of_sides]!=-1]) >= 30 else 0 #Bonus if the sum of the first 6 is greater than 63 with the formular  sum for i in (1,2,3,4,5,6) x/2 where x is the quantity of the numbers
             points[i] = np.sum(state[1][i][state[1][i]!=-1]) + bonus
         if np.any(state[1]==-1):
             return points,False
@@ -122,7 +128,7 @@ class Yahtzee: #sorting the dice arrays changes the number of possible dice stat
         #encoded dice
         for num in state[0]:
             #print(num," encoded as: ",get_one_hot(num,6))
-            encoded = np.append(encoded,get_one_hot(num,6))
+            encoded = np.append(encoded,get_one_hot(num,num_of_sides))
         #open fields
         active_player_index = np.argmax(np.count_nonzero(state[1]==-1,axis=1))
         encoded = np.append(encoded,state[1][active_player_index]==-1)
@@ -147,9 +153,9 @@ def get_one_hot(num,size):
     return one_hot
 
 def get_binary(num):
-    return np.array(list(np.binary_repr(int(num),width=9))).astype(int)
+    return np.array(list(np.binary_repr(int(num),width=8))).astype(int)
 
-all_permutations = list(iter.product(range(0,2),repeat=5))[1:]
+all_permutations = list(iter.product(range(0,2),repeat=num_of_dice))[1:]
 
 def random_bot_action(game,state,player,valid_actions):
     c = r.choice(valid_actions)
@@ -236,8 +242,8 @@ def classic_greedy_bot(game,state,player,valid_actions):#Greedy bot which simula
 # print(np.average(x,axis=0))
 # print(np.median(x,axis=0))
 
-all_possible_dice_states = list(iter.product(range(1,7),repeat=5))#7776
-sorted_possible_dice_states = list(iter.combinations_with_replacement(range(1,7),r=5))#252 #70 if 4xD5
+all_possible_dice_states = list(iter.product(range(1,num_of_sides+1),repeat=num_of_dice))#7776
+sorted_possible_dice_states = list(iter.combinations_with_replacement(range(1,num_of_sides+1),r=num_of_dice))#252 #70 if 4xD5
 def calc_dice_state_probabilities(possible_dice_states):
     dice_state_probabilities = {}
     for d_state in possible_dice_states:

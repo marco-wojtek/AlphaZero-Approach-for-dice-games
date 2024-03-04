@@ -614,16 +614,29 @@ class AlphaZeroParallel:
             for epoch in tqdm(range(self.args['num_epochs'])):
                 self.train(memory)
 
-            torch.save(self.model.state_dict(), f"Models/fmodel_{iteration}.pt")
-            torch.save(self.optimizer.state_dict(), f"Models/foptimizer_{iteration}.pt")
+                with open('Losses/policy_loss.txt', 'a') as f:
+                    f.write('%f \n' % np.average(policy_loss_arr))
+                    f.close()
+                with open('Losses/value_loss.txt', 'a') as f:
+                    f.write('%f \n' % np.average(value_loss_arr))
+                    f.close()
+                with open('Losses/total_loss.txt', 'a') as f:
+                    f.write('%f \n' % np.average(total_loss_arr))
+                    f.close()
+                policy_loss_arr.clear()
+                value_loss_arr.clear()
+                total_loss_arr.clear()
+
+            torch.save(self.model.state_dict(), f"Models/model_{iteration}.pt")
+            torch.save(self.optimizer.state_dict(), f"Models/optimizer_{iteration}.pt")
 
             #get average loss
-            print("avg policy loss: ", np.average(policy_loss_arr))
-            print("avg value loss: ", np.average(value_loss_arr))
-            print("avg total loss: ", np.average(total_loss_arr))
-            policy_loss_arr.clear()
-            value_loss_arr.clear()
-            total_loss_arr.clear()
+            # print("avg policy loss: ", np.average(policy_loss_arr))
+            # print("avg value loss: ", np.average(value_loss_arr))
+            # print("avg total loss: ", np.average(total_loss_arr))
+            # policy_loss_arr.clear()
+            # value_loss_arr.clear()
+            # total_loss_arr.clear()
 
 
 class SPG:
@@ -642,10 +655,10 @@ def testParallel():
     # optimizer.load_state_dict(torch.load('Models/optimizer_2.pt', map_location=device))
     args = {
         'C': 2.5,
-        'num_searches': 500,#500            800
+        'num_searches': 600,#500            800
         'num_iterations': 3,
-        'num_selfPlay_iterations': 450,#450  
-        'num_parallel_games': 150,#150      
+        'num_selfPlay_iterations': 400,#450  
+        'num_parallel_games': 100,#150      
         'num_epochs': 6,
         'batch_size': 64,#64
         'temperature': 1.3,
