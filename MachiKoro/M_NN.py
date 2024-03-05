@@ -614,13 +614,13 @@ class AlphaZeroParallel:
             for epoch in tqdm(range(self.args['num_epochs'])):
                 self.train(memory)
 
-                with open('Losses/policy_loss.txt', 'a') as f:
+                with open(f'Losses{loss_idx}/policy_loss.txt', 'a') as f:
                     f.write('%f \n' % np.average(policy_loss_arr))
                     f.close()
-                with open('Losses/value_loss.txt', 'a') as f:
+                with open(f'Losses{loss_idx}/policy_loss.txt', 'a') as f:
                     f.write('%f \n' % np.average(value_loss_arr))
                     f.close()
-                with open('Losses/total_loss.txt', 'a') as f:
+                with open(f'Losses{loss_idx}/policy_loss.txt', 'a') as f:
                     f.write('%f \n' % np.average(total_loss_arr))
                     f.close()
                 policy_loss_arr.clear()
@@ -649,16 +649,16 @@ class SPG:
 def testParallel():
     mk = machikoro.Machikoro()
     model = NeuralNetwork(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)#0.001
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)#0.001
 
     # model.load_state_dict(torch.load('Models/model_2.pt', map_location=device))
     # optimizer.load_state_dict(torch.load('Models/optimizer_2.pt', map_location=device))
     args = {
         'C': 2.5,
         'num_searches': 600,#500            800
-        'num_iterations': 3,
-        'num_selfPlay_iterations': 400,#450  
-        'num_parallel_games': 100,#150      
+        'num_iterations': 8,
+        'num_selfPlay_iterations': 360,#450  
+        'num_parallel_games': 120,#150      
         'num_epochs': 6,
         'batch_size': 64,#64
         'temperature': 1.3,
@@ -669,6 +669,8 @@ def testParallel():
     alphaZero = AlphaZeroParallel(model, optimizer, mk, args)
     alphaZero.learn()
 
+learning_rate = 0.001
+loss_idx = int(np.log10(learning_rate**-1))
 policy_loss_arr, value_loss_arr, total_loss_arr = [], [], []
 testParallel()
 
