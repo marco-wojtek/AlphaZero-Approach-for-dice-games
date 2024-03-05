@@ -627,8 +627,8 @@ class AlphaZeroParallel:
                 value_loss_arr.clear()
                 total_loss_arr.clear()
 
-            torch.save(self.model.state_dict(), f"Models/model_{iteration}.pt")
-            torch.save(self.optimizer.state_dict(), f"Models/optimizer_{iteration}.pt")
+            torch.save(self.model.state_dict(), f"Models/version_{loss_idx}_model_{iteration}.pt")
+            torch.save(self.optimizer.state_dict(), f"Models/version_{loss_idx}_optimizer_{iteration}.pt")
 
             #get average loss
             # print("avg policy loss: ", np.average(policy_loss_arr))
