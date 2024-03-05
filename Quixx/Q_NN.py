@@ -528,10 +528,10 @@ class AlphaZeroParallel:
                 with open(f'Losses{loss_idx}/policy_loss.txt', 'a') as f:
                     f.write('%f \n' % np.average(policy_loss_arr))
                     f.close()
-                with open(f'Losses{loss_idx}/policy_loss.txt', 'a') as f:
+                with open(f'Losses{loss_idx}/value_loss.txt', 'a') as f:
                     f.write('%f \n' % np.average(value_loss_arr))
                     f.close()
-                with open(f'Losses{loss_idx}/policy_loss.txt', 'a') as f:
+                with open(f'Losses{loss_idx}/total_loss.txt', 'a') as f:
                     f.write('%f \n' % np.average(total_loss_arr))
                     f.close()
                 policy_loss_arr.clear()
@@ -564,8 +564,8 @@ def testParallel():
         'C': 2.5,
         'num_searches': 2500,
         'num_iterations': 8,
-        'num_selfPlay_iterations': 800,
-        'num_parallel_games': 200,
+        'num_selfPlay_iterations': 1000,
+        'num_parallel_games': 250,
         'num_epochs': 6,
         'batch_size': 64, 
         'temperature':1.3,
