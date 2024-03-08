@@ -53,11 +53,23 @@ class NeuralNetwork(nn.Module):
             nn.ReLU(),
             nn.Linear(128, 128,dtype=float),
             nn.ReLU(),
+            nn.Linear(128, 128,dtype=float),
+            nn.ReLU(),
+            nn.Linear(128, 128,dtype=float),
+            nn.ReLU(),
+            nn.Linear(128, 128,dtype=float),
+            nn.ReLU(),
             nn.Linear(128, 23,dtype=float)
         )
 
         self.valueHead = nn.Sequential(
             nn.Linear(122, 128,dtype=float),
+            nn.ReLU(),
+            nn.Linear(128, 128,dtype=float),
+            nn.ReLU(),
+            nn.Linear(128, 128,dtype=float),
+            nn.ReLU(),
+            nn.Linear(128, 128,dtype=float),
             nn.ReLU(),
             nn.Linear(128, 64,dtype=float),
             nn.ReLU(),
@@ -538,8 +550,8 @@ class AlphaZeroParallel:
                 value_loss_arr.clear()
                 total_loss_arr.clear()
             
-            torch.save(self.model.state_dict(), f"Models/version_{loss_idx}_model_{iteration}.pt")
-            torch.save(self.optimizer.state_dict(), f"Models/version_{loss_idx}_optimizer_{iteration}.pt")
+            torch.save(self.model.state_dict(), f"ModelsNN2/version_{loss_idx}_model_{iteration}.pt")
+            torch.save(self.optimizer.state_dict(), f"ModelsNN2/version_{loss_idx}_optimizer_{iteration}.pt")
             # print("avg policy loss: ", np.average(policy_loss_arr))
             # print("avg value loss: ", np.average(value_loss_arr))
             # print("avg total loss: ", np.average(total_loss_arr))
@@ -576,7 +588,7 @@ def testParallel():
     alphaZero = AlphaZeroParallel(model, optimizer, quixx, args)
     alphaZero.learn()
 
-learning_rate = 0.0001 #Losses{Anzahl der Nullen der lr} Bsp. lr = 0.001 -> Losses3
+learning_rate = 0.001 #Losses{Anzahl der Nullen der lr} Bsp. lr = 0.001 -> Losses3
 loss_idx = int(np.log10(learning_rate**-1))
 policy_loss_arr, value_loss_arr, total_loss_arr = [], [], []
 testParallel()

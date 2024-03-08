@@ -36,12 +36,13 @@ class NeuralNetwork(nn.Module):
         self.device = device 
         #sqrt(input layer nodes * output layer nodes)
         self.policyHead = nn.Sequential(
-            # nn.Linear(77, 128,dtype=float),
-            # nn.ReLU(),
-            # nn.Linear(128, 128,dtype=float),
-            # nn.ReLU(),
-            # nn.Linear(128, 44,dtype=float)
             nn.Linear(50, 128,dtype=float),
+            nn.ReLU(),
+            nn.Linear(128, 64,dtype=float),
+            nn.ReLU(),
+            nn.Linear(128, 64,dtype=float),
+            nn.ReLU(),
+            nn.Linear(128, 64,dtype=float),
             nn.ReLU(),
             nn.Linear(128, 64,dtype=float),
             nn.ReLU(),
@@ -49,13 +50,13 @@ class NeuralNetwork(nn.Module):
         )
 
         self.valueHead = nn.Sequential(
-            # nn.Linear(74, 64,dtype=float),
-            # nn.ReLU(),
-            # nn.Linear(77, 64,dtype=float),
-            # nn.ReLU(),
-            # nn.Linear(64, 64,dtype=float),
-            # nn.ReLU(),
             nn.Linear(50, 64,dtype=float),
+            nn.ReLU(),
+            nn.Linear(64, 64,dtype=float),
+            nn.ReLU(),
+            nn.Linear(64, 64,dtype=float),
+            nn.ReLU(),
+            nn.Linear(64, 64,dtype=float),
             nn.ReLU(),
             nn.Linear(64, 32,dtype=float),
             nn.ReLU(),
@@ -551,8 +552,8 @@ class AlphaZeroParallel:
                 value_loss_arr.clear()
                 total_loss_arr.clear()
             
-            torch.save(self.model.state_dict(), f"Models/version_{loss_idx}_model_{iteration}.pt")
-            torch.save(self.optimizer.state_dict(), f"Models/version_{loss_idx}_optimizer_{iteration}.pt")
+            torch.save(self.model.state_dict(), f"ModelsNN2/version_{loss_idx}_model_{iteration}.pt")
+            torch.save(self.optimizer.state_dict(), f"ModelsNN2/version_{loss_idx}_optimizer_{iteration}.pt")
 
             # print("avg policy loss: ", np.average(policy_loss_arr))
             # print("avg value loss: ", np.average(value_loss_arr))
@@ -592,75 +593,10 @@ def testParallel():
     alphaZero = AlphaZeroParallel(model, optimizer, yahtzee, args)
     alphaZero.learn()
 
-learning_rate = 0.0001
+learning_rate = 0.001
 loss_idx = int(np.log10(learning_rate**-1))
 policy_loss_arr, value_loss_arr, total_loss_arr = [], [], []
-#testParallel()
-
-play = False
-if play:
-    yahtzee = y.Yahtzee(2)
-    state = yahtzee.get_initial_state()
-    state = yahtzee.get_next_state(state,0,-1,(1,1,1,1))
-
-    model = NeuralNetwork(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-
-    model.load_state_dict(torch.load('Models/model_0.pt', map_location=device))
-    optimizer.load_state_dict(torch.load('Models/optimizer_0.pt', map_location=device))
-
-    # modelB.load_state_dict(torch.load('model_0.pt', map_location=device))
-    # optimizerB.load_state_dict(torch.load(',optimizer_0.pt', map_location=device))
-
-    num_games = 1000
-    x = [[0,0]]
-    for i in tqdm(range(num_games)):
-        yahtzee = y.Yahtzee(2)
-        state = yahtzee.get_initial_state()
-        state = yahtzee.get_next_state(state,0,-1,(1,1,1,1))
-        player = 0 
-        throw = 0
-        points, is_terminal = yahtzee.get_points_and_terminated(state)
-        while not is_terminal:
-            if player == 0:
-                value,policy = model(torch.tensor(yahtzee.get_encoded_state(state,throw),device=model.device))
-                policy = torch.softmax(policy,0).detach().cpu().numpy()
-                v = yahtzee.get_valid_moves(state,player,throw)
-                for i in range(len(policy)):
-                    if i not in v:
-                        policy[i] = 0
-                
-                assert np.sum(policy) > 0
-
-                policy /= np.sum(policy)
-                action = np.argmax(policy)
-            else:
-                v = yahtzee.get_valid_moves(state,player,throw)
-                action = r.choice(v)
-                # value,policy = modelB(torch.tensor(yahtzee.get_encoded_state(state,throw),device=model.device))
-                # policy = torch.softmax(policy,0).detach().cpu().numpy()
-                # v = yahtzee.get_valid_moves(state,player,throw)
-                # for i in range(len(policy)):
-                #     if i not in v:
-                #         policy[i] = 0
-                
-                # assert np.sum(policy) > 0
-
-                # policy /= np.sum(policy)
-                # action = np.argmax(policy)
-            if action > 10:
-                state = yahtzee.get_next_state(state,player,-1,all_permutations[action-len(y.options)])
-                throw += 1
-            else:
-                state = yahtzee.get_next_state(state,player,action)
-                state = yahtzee.get_next_state(state,player,-1,(1,1,1,1))
-                player = (player + 1) % len(state[1])
-                throw = 0
-                points, is_terminal = yahtzee.get_points_and_terminated(state)
-        x = np.append(x,[points],axis=0)
-
-    print(1-(np.sum(np.argmax(x[1:,:],axis=1))/num_games))
-    print(np.average(x[1:,:],axis=0))
+testParallel()
 
 def simulate(num_games,P1,P2,version):
     if not P1 is None:
