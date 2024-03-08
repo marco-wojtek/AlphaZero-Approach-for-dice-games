@@ -580,3 +580,80 @@ learning_rate = 0.001 #Losses{Anzahl der Nullen der lr} Bsp. lr = 0.001 -> Losse
 loss_idx = int(np.log10(learning_rate**-1))
 policy_loss_arr, value_loss_arr, total_loss_arr = [], [], []
 testParallel()
+
+def simulate(num_games,P1,P2,version):
+    if not P1 is None:
+        P1model = NeuralNetwork(device)
+        P1optimizer = torch.optim.Adam(P1model.parameters(), lr=1**-version)
+
+        P1model.load_state_dict(torch.load(f"Models/version_{version}_optimizer_{P1}.pt", map_location=device))
+        P1optimizer.load_state_dict(torch.load(f"Models/version_{version}_optimizer_{P1}.pt", map_location=device))
+    else:
+        P1model = None
+        P1optimizer = None
+
+    if not P2 is None:
+        P2model = NeuralNetwork(device)
+        P2optimizer = torch.optim.Adam(P2model.parameters(), lr=1**-version)
+
+        P2model.load_state_dict(torch.load(f"Models/version_{version}_optimizer_{P2}.pt", map_location=device))
+        P2optimizer.load_state_dict(torch.load(f"Models/version_{version}_optimizer_{P2}.pt", map_location=device))
+    else:
+        P2model = None
+        P2optimizer = None
+
+    player_types = [P1model,P2model]
+    quixx = simpleQ.Quixx()
+    x = [[0,0]]
+    ties = 0
+
+    for i in range(num_games):
+        state = quixx.get_initial_state()
+        state[0] = simpleQ.dice()
+        player = i > num_games/2
+        act_mem = None
+        white_turn = True
+        temp_player = player
+        _, is_terminal = quixx.get_points_and_terminated(state)
+        while not is_terminal:
+            v = quixx.get_valid_moves(state,temp_player,white_turn)
+            if not player_types[temp_player] is None:
+                _, policy = player_types[player](torch.tensor(quixx.get_encoded_state(state),device=player_types[temp_player].device))
+                policy = torch.softmax(policy,0).detach().cpu().numpy()
+
+                for i in range(len(policy)):
+                    if i not in v:
+                        policy[i] = 0
+                    
+                assert np.sum(policy) > 0
+
+                policy /= np.sum(policy)
+                action = np.argmax(policy)
+            else:
+                action = r.choice(v)
+            
+            if act_mem is None:
+                act_mem = action
+            elif temp_player == player:
+                action = -1 if action+act_mem == 0 else action
+
+            state = quixx.get_next_state(state,temp_player,action)
+            points, is_terminal = quixx.get_points_and_terminated(state)
+            if not white_turn:
+                player = (player+1)%2
+                temp_player = player
+                act_mem = None
+                white_turn = True
+                state[0] = simpleQ.dice()
+            else:
+                temp_player = (temp_player+1)%2
+                if temp_player == player:
+                    white_turn = False
+
+        if points[0] != points[1]:
+            x = np.append(x,[points],axis=0)
+        else:
+            ties += 1
+    return 1-(np.sum(np.argmax(x[1:],axis=1))/num_games-ties),ties
+
+

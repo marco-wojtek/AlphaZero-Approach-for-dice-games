@@ -13,7 +13,7 @@ from torch import nn
 # from torchvision import datasets
 # from torchvision.transforms import ToTensor
 
-import y
+from Yahtzee import y
 print(torch.__version__)
 
 #run with python -u "d:\Informatikstudium\Bachelor-Arbeit\Python_code\NN.py" or pyton -u NN.py
@@ -51,14 +51,10 @@ class NeuralNetwork(nn.Module):
         self.valueHead = nn.Sequential(
             # nn.Linear(74, 64,dtype=float),
             # nn.ReLU(),
-            # nn.Linear(64, 1,dtype=float),
-            # nn.Tanh()
             # nn.Linear(77, 64,dtype=float),
             # nn.ReLU(),
             # nn.Linear(64, 64,dtype=float),
             # nn.ReLU(),
-            # nn.Linear(64, 1,dtype=float),
-            # nn.Tanh()
             nn.Linear(50, 64,dtype=float),
             nn.ReLU(),
             nn.Linear(64, 32,dtype=float),
@@ -599,7 +595,7 @@ def testParallel():
 learning_rate = 0.001
 loss_idx = int(np.log10(learning_rate**-1))
 policy_loss_arr, value_loss_arr, total_loss_arr = [], [], []
-testParallel()
+#testParallel()
 
 play = False
 if play:
@@ -666,3 +662,65 @@ if play:
     print(1-(np.sum(np.argmax(x[1:,:],axis=1))/num_games))
     print(np.average(x[1:,:],axis=0))
 
+def simulate(num_games,P1,P2,version):
+    if not P1 is None:
+        P1model = NeuralNetwork(device)
+        P1optimizer = torch.optim.Adam(P1model.parameters(), lr=1**-version)
+
+        P1model.load_state_dict(torch.load(f"Models/version_{version}_optimizer_{P1}.pt", map_location=device))
+        P1optimizer.load_state_dict(torch.load(f"Models/version_{version}_optimizer_{P1}.pt", map_location=device))
+    else:
+        P1model = None
+        P1optimizer = None
+
+    if not P2 is None:
+        P2model = NeuralNetwork(device)
+        P2optimizer = torch.optim.Adam(P2model.parameters(), lr=1**-version)
+
+        P2model.load_state_dict(torch.load(f"Models/version_{version}_optimizer_{P2}.pt", map_location=device))
+        P2optimizer.load_state_dict(torch.load(f"Models/version_{version}_optimizer_{P2}.pt", map_location=device))
+    else:
+        P2model = None
+        P2optimizer = None
+
+    x = [[0,0]]
+    player_types = [P1model,P2model]
+    yahtzee = y.Yahtzee(2)
+    ties = 0
+    for i in range(num_games):   
+        state = yahtzee.get_initial_state()
+        state = yahtzee.get_next_state(state,0,-1,(1,1,1,1))
+        player = i > num_games/2
+        throw = 0
+        points, is_terminal = yahtzee.get_points_and_terminated(state)
+        while not is_terminal:      
+            v = yahtzee.get_valid_moves(state,player,throw)
+            if player_types[player] is None:
+                action = r.choice(v)
+            else:
+                _, policy = player_types[player](torch.tensor(yahtzee.get_encoded_state(state,throw),device=player_types[player].device))
+                policy = torch.softmax(policy,0).detach().cpu().numpy()
+                
+                for i in range(len(policy)):
+                    if i not in v:
+                        policy[i] = 0
+                    
+                assert np.sum(policy) > 0
+
+                policy /= np.sum(policy)
+                action = np.argmax(policy)
+
+            if action > 10:
+                state = yahtzee.get_next_state(state,player,-1,y.all_permutations[action-len(y.options)])
+                throw += 1
+            else:
+                state = yahtzee.get_next_state(state,player,action)
+                state = yahtzee.get_next_state(state,player,-1,(1,1,1,1))
+                player = (player + 1) % len(state[1])
+                throw = 0
+                points, is_terminal = yahtzee.get_points_and_terminated(state)
+        if points[0] != points[1]:
+            x = np.append(x,[points],axis=0)
+        else:
+            ties += 1
+    return 1-(np.sum(np.argmax(x[1:],axis=1))/num_games-ties), ties
