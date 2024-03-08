@@ -576,7 +576,7 @@ def testParallel():
     alphaZero = AlphaZeroParallel(model, optimizer, quixx, args)
     alphaZero.learn()
 
-learning_rate = 0.001 #Losses{Anzahl der Nullen der lr} Bsp. lr = 0.001 -> Losses3
+learning_rate = 0.0001 #Losses{Anzahl der Nullen der lr} Bsp. lr = 0.001 -> Losses3
 loss_idx = int(np.log10(learning_rate**-1))
 policy_loss_arr, value_loss_arr, total_loss_arr = [], [], []
 testParallel()
