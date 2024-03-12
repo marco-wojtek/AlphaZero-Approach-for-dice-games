@@ -526,7 +526,7 @@ class AlphaZeroParallel:
             self.optimizer.step() 
 
     def learn(self):
-        for iteration in range(self.args['num_iterations']):
+        for iteration in range(5, self.args['num_iterations']):
             memory = []
             print("Iteration ", iteration)
             self.model.eval()
@@ -572,6 +572,9 @@ def testParallel():
     model = NeuralNetwork(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
+    model.load_state_dict(torch.load(f"ModelsNN2/version_{loss_idx}_model_4.pt", map_location=device))
+    optimizer.load_state_dict(torch.load(f"ModelsNN2/version_{loss_idx}_optimizer_4.pt", map_location=device))
+
     args = {
         'C': 2.5,
         'num_searches': 2500,
@@ -588,7 +591,7 @@ def testParallel():
     alphaZero = AlphaZeroParallel(model, optimizer, quixx, args)
     alphaZero.learn()
 
-learning_rate = 0.001 #Losses{Anzahl der Nullen der lr} Bsp. lr = 0.001 -> Losses3
+learning_rate = 0.01 #Losses{Anzahl der Nullen der lr} Bsp. lr = 0.001 -> Losses3
 loss_idx = int(np.log10(learning_rate**-1))
 policy_loss_arr, value_loss_arr, total_loss_arr = [], [], []
 testParallel()

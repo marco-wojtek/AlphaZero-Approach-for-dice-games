@@ -13,7 +13,7 @@ from torch import nn
 # from torchvision import datasets
 # from torchvision.transforms import ToTensor
 
-from Yahtzee import y
+import y
 print(torch.__version__)
 
 #run with python -u "d:\Informatikstudium\Bachelor-Arbeit\Python_code\NN.py" or pyton -u NN.py
@@ -38,11 +38,11 @@ class NeuralNetwork(nn.Module):
         self.policyHead = nn.Sequential(
             nn.Linear(50, 128,dtype=float),
             nn.ReLU(),
-            nn.Linear(128, 64,dtype=float),
+            nn.Linear(128, 128,dtype=float),
             nn.ReLU(),
-            nn.Linear(128, 64,dtype=float),
+            nn.Linear(128, 128,dtype=float),
             nn.ReLU(),
-            nn.Linear(128, 64,dtype=float),
+            nn.Linear(128, 128,dtype=float),
             nn.ReLU(),
             nn.Linear(128, 64,dtype=float),
             nn.ReLU(),
