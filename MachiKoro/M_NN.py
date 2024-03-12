@@ -269,7 +269,7 @@ class MCTSParallel:
     def search(self,states,spGames,player,last_action,dices=None):
         
         #dirichlet variant
-        _, policy = self.model(torch.tensor(self.game.get_encoded_states(states),device=self.model.device))
+        _, policy = self.model(torch.tensor(self.game.get_encoded_states(states),device=self.model.device,dtype=torch.float32))
         policy = torch.softmax(policy,1).detach().cpu().numpy()
         policy = (1 - self.args['dirichlet_epsilon']) * policy + self.args['dirichlet_epsilon'] * np.random.dirichlet([self.args['dirichlet_alpha']] * len(policy[0]), size=policy.shape[0])
         for i,spg in enumerate(spGames):

@@ -271,7 +271,7 @@ class MCTSParallel:
     def search(self,states,spGames,player,active_player_action,iswhiteturn):
 
         #dirichlet variant
-        _, policy = self.model(torch.tensor(self.game.get_encoded_states(states),device=self.model.device))
+        _, policy = self.model(torch.tensor(self.game.get_encoded_states(states),device=self.model.device,dtype=torch.float32))
         policy = torch.softmax(policy,1).detach().cpu().numpy()
         policy = (1 - self.args['dirichlet_epsilon']) * policy + self.args['dirichlet_epsilon'] * np.random.dirichlet([self.args['dirichlet_alpha']] * len(policy[0]), size=policy.shape[0])
         for i,spg in enumerate(spGames):
@@ -316,7 +316,7 @@ class MCTSParallel:
 
             if len(expandable_spGames) > 0:
                 states = np.stack([spGames[mappingIdx].node.state for mappingIdx in expandable_spGames])
-                value, policy = self.model(torch.tensor(self.game.get_encoded_states(states),device=self.model.device,dtype=torch.torch.float3232))
+                value, policy = self.model(torch.tensor(self.game.get_encoded_states(states),device=self.model.device,dtype=torch.float32))
                 policy = torch.softmax(policy,1).detach().cpu().numpy()
                 value = value.detach().cpu().numpy()
             
