@@ -9,11 +9,13 @@ import math
 import torch
 import torch.nn.functional as F
 from torch import nn
+import matplotlib.pyplot as plt
+import matplotlib as mpl
 # from torch.utils.data import DataLoader
 # from torchvision import datasets
 # from torchvision.transforms import ToTensor
 
-from Yahtzee import y
+import y
 print(torch.__version__)
 
 #run with python -u "d:\Informatikstudium\Bachelor-Arbeit\Python_code\NN.py" or pyton -u NN.py
@@ -36,31 +38,107 @@ class NeuralNetwork(nn.Module):
         self.device = device 
         #sqrt(input layer nodes * output layer nodes)
         self.policyHead = nn.Sequential(
-            nn.Linear(50, 128,dtype=float),
+            nn.Linear(50, 128,dtype=torch.float32),
             nn.ReLU(),
-            nn.Linear(128, 64,dtype=float),
+            nn.Linear(128, 64,dtype=torch.float32),
             nn.ReLU(),
-            nn.Linear(128, 64,dtype=float),
-            nn.ReLU(),
-            nn.Linear(128, 64,dtype=float),
-            nn.ReLU(),
-            nn.Linear(128, 64,dtype=float),
-            nn.ReLU(),
-            nn.Linear(64, 26,dtype=float)
+            nn.Linear(64, 26,dtype=torch.float32)
         )
 
         self.valueHead = nn.Sequential(
-            nn.Linear(50, 64,dtype=float),
+            nn.Linear(50, 64,dtype=torch.float32),
             nn.ReLU(),
-            nn.Linear(64, 64,dtype=float),
+            nn.Linear(64, 32,dtype=torch.float32),
             nn.ReLU(),
-            nn.Linear(64, 64,dtype=float),
+            nn.Linear(32, 1,dtype=torch.float32),
+            nn.Tanh()
+        )
+
+        self.to(device)
+
+    def forward(self, x):
+        policy = self.policyHead(x)
+        value = self.valueHead(x)
+        return value, policy
+    
+class NeuralNetwork2(nn.Module):
+    def __init__(self, device):
+        super().__init__()
+
+        self.device = device 
+        #sqrt(input layer nodes * output layer nodes)
+        self.policyHead = nn.Sequential(
+            nn.Linear(50, 128,dtype=torch.float32),
             nn.ReLU(),
-            nn.Linear(64, 64,dtype=float),
+            nn.Linear(128, 64,dtype=torch.float32),
             nn.ReLU(),
-            nn.Linear(64, 32,dtype=float),
+            nn.Linear(128, 64,dtype=torch.float32),
             nn.ReLU(),
-            nn.Linear(32, 1,dtype=float),
+            nn.Linear(128, 64,dtype=torch.float32),
+            nn.ReLU(),
+            nn.Linear(128, 64,dtype=torch.float32),
+            nn.ReLU(),
+            nn.Linear(64, 26,dtype=torch.float32)
+        )
+
+        self.valueHead = nn.Sequential(
+            nn.Linear(50, 64,dtype=torch.float32),
+            nn.ReLU(),
+            nn.Linear(64, 64,dtype=torch.float32),
+            nn.ReLU(),
+            nn.Linear(64, 64,dtype=torch.float32),
+            nn.ReLU(),
+            nn.Linear(64, 64,dtype=torch.float32),
+            nn.ReLU(),
+            nn.Linear(64, 32,dtype=torch.float32),
+            nn.ReLU(),
+            nn.Linear(32, 1,dtype=torch.float32),
+            nn.Tanh()
+        )
+
+        self.to(device)
+
+    def forward(self, x):
+        policy = self.policyHead(x)
+        value = self.valueHead(x)
+        return value, policy
+    
+class NeuralNetwork3(nn.Module):
+    def __init__(self, device):
+        super().__init__()
+
+        self.device = device 
+        #sqrt(input layer nodes * output layer nodes)
+        self.policyHead = nn.Sequential(
+            nn.Linear(50, 128,dtype=torch.float32),
+            nn.LayerNorm(128,dtype=torch.float32),
+            nn.ReLU(),
+            nn.Linear(128, 64,dtype=torch.float32),
+            nn.LayerNorm(64,dtype=torch.float32),
+            nn.ReLU(),
+            # nn.Linear(128, 64,dtype=torch.float32),
+            # nn.ReLU(),
+            # nn.Linear(128, 64,dtype=torch.float32),
+            # nn.ReLU(),
+            # nn.Linear(128, 64,dtype=torch.float32),
+            # nn.ReLU(),
+            nn.Linear(64, 26,dtype=torch.float32)
+        )
+
+        self.valueHead = nn.Sequential(
+            nn.Linear(50, 64,dtype=torch.float32),
+            nn.LayerNorm(64,dtype=torch.float32),
+            nn.ReLU(),
+            # nn.Linear(64, 64,dtype=torch.float32),
+            # nn.ReLU(),
+            # nn.Linear(64, 64,dtype=torch.float32),
+            # nn.ReLU(),
+            # nn.Linear(64, 64,dtype=torch.float32),
+            # nn.ReLU(),
+            nn.Linear(64, 32,dtype=torch.float32),
+            nn.LayerNorm(32,dtype=torch.float32),
+            nn.ReLU(),
+            nn.Linear(32, 1,dtype=torch.float32),
             nn.Tanh()
         )
 
@@ -197,164 +275,6 @@ class Node:
                 value = -value
             self.parent.backpropagate(value) 
 
-
-class MCTS:
-    def __init__(self, game, args, model):
-        self.game = game
-        self.args = args
-        self.model = model
-    
-    @torch.no_grad()
-    def search(self,state,player,last_action=None,throw=0):
-        root = Node(self.game,self.args,state,player,action_taken=last_action,throw=throw,visit_count=1)
-        for search in tqdm(range(self.args['num_searches'])):
-            node = root
-            
-            while node.is_fully_expanded():
-                node = node.select()
-            
-            points, is_terminal = self.game.get_points_and_terminated(node.state)
-            value = 1
-            if np.count_nonzero(points==np.max(points))!=1:
-                value = 0
-            elif np.argmax(points) != node.active_player:
-                value = -1
-
-            if not is_terminal:
-                value, policy = self.model(torch.tensor(self.game.get_encoded_state(node.state),device=self.model.device))
-
-                policy = torch.softmax(policy,0).detach().cpu().numpy()
-                valid_moves = self.game.get_valid_moves(node.state,node.active_player,node.throw)
-                for i in range(len(policy)):
-                    if i not in valid_moves:
-                        policy[i] = 0
-                #policy = torch.softmax(policy,0).detach().cpu().numpy()
-                policy /= np.sum(policy)
-
-                value = value.item()
-                node.expand(policy)
-            node.backpropagate(value)
-        action_probs = np.zeros(26)
-        for child_key, child_value in root.children.items():
-            action_probs[child_key] = child_value.visit_count
-
-        action_probs /= np.sum(action_probs)
-        return action_probs
-    
-
-class AlphaZero:
-    def __init__(self, model, optimizer, game, args):
-        self.model = model
-        self.optimizer = optimizer
-        self.game = game
-        self.args = args
-        self.mcts = MCTS(game,args,model)
-
-    def selfPlay(self):
-        memory = []
-        player = 0
-        state = self.game.get_initial_state()
-        state = self.game.get_next_state(state,player,-1,(1,1,1,1))
-
-        action = None
-        throw = 0
-        while True:
-            #print(state, "\n action: ",action , "\n -------------------------")
-            action_probs = self.mcts.search(state,player,action,throw)#check search in relation to valid moves
-            #print("action_props: ", action_probs)
-            memory.append((state,action_probs,player))
-
-            temperature_action_probs = action_probs ** (1 / self.args['temperature'])#squishes the values together to allow more exploration
-            action = r.choices(np.arange(len(action_probs)),temperature_action_probs)[0]
-            #print("-------------------------------")
-            if action <=10:
-                state = self.game.get_next_state(state,player,action)
-            else:
-                state = self.game.get_next_state(state,player,-1,all_permutations[action-len(y.options)])
-
-            #check points and terminated
-            value, is_terminal = self.game.get_points_and_terminated(state)
-
-            if is_terminal:
-                returnMemory = []
-                for hist_neutral_state, hist_action_probs, hist_player in memory:
-                    hist_outcome = 1 if hist_player == np.argmax(value) else -1
-                    returnMemory.append((
-                        self.game.get_encoded_state(hist_neutral_state),
-                        hist_action_probs,
-                        hist_outcome
-                    ))
-                return returnMemory
-
-            #change turn
-            if action<=10:
-                player = (player+1)%len(state[1])
-                state = self.game.get_next_state(state,player,0,(1,1,1,1))
-                throw = 0
-            else:
-                throw += 1
-
-
-    def train(self,memory):
-        random.shuffle(memory)
-        for batchIdx in range(0, len(memory), self.args['batch_size']):
-            sample = memory[batchIdx:min(len(memory) - 1, batchIdx + self.args['batch_size'])] # Change to memory[batchIdx:batchIdx+self.args['batch_size']] in case of an error
-            state, policy_targets, value_targets = zip(*sample)
-            
-            state, policy_targets, value_targets = np.array(state), np.array(policy_targets), np.array(value_targets).reshape(-1, 1)
-            
-            state = torch.tensor(state, dtype=float, device=self.model.device)
-            policy_targets = torch.tensor(policy_targets, dtype=float, device=self.model.device)
-            value_targets = torch.tensor(value_targets, dtype=float, device=self.model.device)
-            
-            out_value, out_policy = self.model(state)
-            assert torch.all(value_targets>=-1 | value_targets<=1).item() ###delete tanh
-            policy_loss = F.cross_entropy(out_policy, policy_targets)
-            value_loss = F.mse_loss(out_value, value_targets)
-            loss = policy_loss + value_loss
-            print(policy_loss)
-            print(value_loss)
-            print(loss)
-            self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step() 
-
-    def learn(self):
-        for iteration in range(self.args['num_iterations']):
-            memory = []
-            
-            self.model.eval()
-            for selfPlay_iteration in tqdm(range(self.args['num_selfPlay_iterations'])):
-                memory += self.selfPlay()
-                
-            self.model.train()
-            for epoch in tqdm(range(self.args['num_epochs'])):
-                self.train(memory)
-            
-            torch.save(self.model.state_dict(), f"Models/model_{iteration}.pt")
-            torch.save(self.optimizer.state_dict(), f"Models/optimizer_{iteration}.pt")
-
-
-
-def test():
-    yahtzee = y.Yahtzee(2)
-    model = NeuralNetwork(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=0.0001)
-
-    args = {
-        'C': 2,
-        'num_searches': 300,
-        'num_iterations': 1,
-        'num_selfPlay_iterations': 3,
-        "num_parallel_games" : 100,
-        'num_epochs': 4,
-        'batch_size': 64,
-        'temperature': 1.25
-    }
-
-    alphaZero = AlphaZero(model, optimizer, yahtzee, args)
-    alphaZero.learn()
-
 class MCTSParallel:
     def __init__(self, game, args, model):
         self.game = game
@@ -410,7 +330,7 @@ class MCTSParallel:
             if len(expandable_spGames) > 0:
                 states = np.stack([spGames[mappingIdx].node.state for mappingIdx in expandable_spGames])
                 throws = [spGames[mappingIdx].node.throw for mappingIdx in expandable_spGames]
-                value, policy = self.model(torch.tensor(self.game.get_encoded_states(states,throws),device=self.model.device))
+                value, policy = self.model(torch.tensor(self.game.get_encoded_states(states,throws),device=self.model.device,dtype=torch.float32))
                 policy = torch.softmax(policy,1).detach().cpu().numpy()
                 value = value.cpu().numpy()
     
@@ -500,14 +420,14 @@ class AlphaZeroParallel:
     def train(self,memory):
         random.shuffle(memory)
         for batchIdx in range(0, len(memory), self.args['batch_size']):
-            sample = memory[batchIdx:min(len(memory) - 1, batchIdx + self.args['batch_size'])] # Change to memory[batchIdx:batchIdx+self.args['batch_size']] in case of an error
+            sample = memory[batchIdx:batchIdx+self.args['batch_size']] # Change to memory[batchIdx:batchIdx+self.args['batch_size']] in case of an error
             state, policy_targets, value_targets = zip(*sample)
             
             state, policy_targets, value_targets = np.array(state), np.array(policy_targets), np.array(value_targets).reshape(-1, 1)
             
-            state = torch.tensor(state, dtype=float, device=self.model.device)
-            policy_targets = torch.tensor(policy_targets, dtype=float, device=self.model.device)
-            value_targets = torch.tensor(value_targets, dtype=float, device=self.model.device)
+            state = torch.tensor(state, dtype=torch.float32, device=self.model.device)
+            policy_targets = torch.tensor(policy_targets, dtype=torch.float32, device=self.model.device)
+            value_targets = torch.tensor(value_targets, dtype=torch.float32, device=self.model.device)
 
             assert torch.all(value_targets>=-1).item() and torch.all(value_targets<=1).item() ###delete tanh
             out_value, out_policy = self.model(state)
@@ -519,9 +439,10 @@ class AlphaZeroParallel:
             value_loss = F.mse_loss(out_value, value_targets)
             loss = policy_loss + value_loss
             
-            policy_loss_arr.append(policy_loss.item())
-            value_loss_arr.append(value_loss.item())
-            total_loss_arr.append(loss.item())
+            if save_losses:
+                policy_loss_arr.append(policy_loss.item())
+                value_loss_arr.append(value_loss.item())
+                total_loss_arr.append(loss.item())
 
             self.optimizer.zero_grad()
             loss.backward()
@@ -539,21 +460,22 @@ class AlphaZeroParallel:
             for epoch in tqdm(range(self.args['num_epochs'])):
                 self.train(memory)
 
-                with open(f'Losses{loss_idx}/policy_loss.txt', 'a') as f:
-                    f.write('%f \n' % np.average(policy_loss_arr))
-                    f.close()
-                with open(f'Losses{loss_idx}/value_loss.txt', 'a') as f:
-                    f.write('%f \n' % np.average(value_loss_arr))
-                    f.close()
-                with open(f'Losses{loss_idx}/total_loss.txt', 'a') as f:
-                    f.write('%f \n' % np.average(total_loss_arr))
-                    f.close()
+                if save_losses:
+                    with open(f'Losses{loss_idx}/policy_loss.txt', 'a') as f:
+                        f.write('%f \n' % np.average(policy_loss_arr))
+                        f.close()
+                    with open(f'Losses{loss_idx}/value_loss.txt', 'a') as f:
+                        f.write('%f \n' % np.average(value_loss_arr))
+                        f.close()
+                    with open(f'Losses{loss_idx}/total_loss.txt', 'a') as f:
+                        f.write('%f \n' % np.average(total_loss_arr))
+                        f.close()
                 policy_loss_arr.clear()
                 value_loss_arr.clear()
                 total_loss_arr.clear()
             
-            torch.save(self.model.state_dict(), f"ModelsNN2/version_{loss_idx}_model_{iteration}.pt")
-            torch.save(self.optimizer.state_dict(), f"ModelsNN2/version_{loss_idx}_optimizer_{iteration}.pt")
+            torch.save(self.model.state_dict(), f"ModelsNN3/version_{loss_idx}_model_{iteration}.pt")
+            torch.save(self.optimizer.state_dict(), f"ModelsNN3/version_{loss_idx}_optimizer_{iteration}.pt")
 
             # print("avg policy loss: ", np.average(policy_loss_arr))
             # print("avg value loss: ", np.average(value_loss_arr))
@@ -596,6 +518,7 @@ def testParallel():
 learning_rate = 0.001
 loss_idx = int(np.log10(learning_rate**-1))
 policy_loss_arr, value_loss_arr, total_loss_arr = [], [], []
+save_losses = True
 testParallel()
 
 def simulate(num_games,P1,P2,version):
@@ -603,8 +526,9 @@ def simulate(num_games,P1,P2,version):
         P1model = NeuralNetwork(device)
         P1optimizer = torch.optim.Adam(P1model.parameters(), lr=1**-version)
 
-        P1model.load_state_dict(torch.load(f"Models/version_{version}_optimizer_{P1}.pt", map_location=device))
+        P1model.load_state_dict(torch.load(f"Models/version_{version}_model_{P1}.pt", map_location=device))
         P1optimizer.load_state_dict(torch.load(f"Models/version_{version}_optimizer_{P1}.pt", map_location=device))
+        P1model.eval()
     else:
         P1model = None
         P1optimizer = None
@@ -613,8 +537,9 @@ def simulate(num_games,P1,P2,version):
         P2model = NeuralNetwork(device)
         P2optimizer = torch.optim.Adam(P2model.parameters(), lr=1**-version)
 
-        P2model.load_state_dict(torch.load(f"Models/version_{version}_optimizer_{P2}.pt", map_location=device))
+        P2model.load_state_dict(torch.load(f"Models/version_{version}_model_{P2}.pt", map_location=device))
         P2optimizer.load_state_dict(torch.load(f"Models/version_{version}_optimizer_{P2}.pt", map_location=device))
+        P2model.eval()
     else:
         P2model = None
         P2optimizer = None
@@ -626,7 +551,7 @@ def simulate(num_games,P1,P2,version):
     for i in range(num_games):   
         state = yahtzee.get_initial_state()
         state = yahtzee.get_next_state(state,0,-1,(1,1,1,1))
-        player = i > num_games/2
+        player = int(i > num_games/2)
         throw = 0
         points, is_terminal = yahtzee.get_points_and_terminated(state)
         while not is_terminal:      
@@ -634,7 +559,7 @@ def simulate(num_games,P1,P2,version):
             if player_types[player] is None:
                 action = r.choice(v)
             else:
-                _, policy = player_types[player](torch.tensor(yahtzee.get_encoded_state(state,throw),device=player_types[player].device))
+                _, policy = player_types[player](torch.tensor(yahtzee.get_encoded_state(state,throw),device=player_types[player].device,dtype=torch.float32))
                 policy = torch.softmax(policy,0).detach().cpu().numpy()
                 
                 for i in range(len(policy)):
@@ -645,7 +570,6 @@ def simulate(num_games,P1,P2,version):
 
                 policy /= np.sum(policy)
                 action = np.argmax(policy)
-
             if action > 10:
                 state = yahtzee.get_next_state(state,player,-1,y.all_permutations[action-len(y.options)])
                 throw += 1
@@ -659,4 +583,34 @@ def simulate(num_games,P1,P2,version):
             x = np.append(x,[points],axis=0)
         else:
             ties += 1
-    return 1-(np.sum(np.argmax(x[1:],axis=1))/num_games-ties), ties
+    return 1-(np.sum(np.argmax(x[1:],axis=1))/(num_games-ties)), ties
+
+def img_for_simulation():
+    for version in range(2,5):
+        winrates = []
+        for i in tqdm(range(8)):
+            winrates = np.append(winrates,simulate(1000,i,None,version)[0]*100)
+        plt.plot(np.arange(8), winrates, label = f"lr = {10**(-version)}")
+
+    plt.title('Yahtzee winrate against random Bot')
+    plt.xlabel('Iteration')
+    plt.ylabel('Win rate in %')
+    plt.legend(loc="lower right")
+    plt.show()
+
+#img_for_simulation()
+    
+#tournament
+# indx = np.arange(8,dtype=int)
+# np.random.shuffle(indx)
+# winner = np.array([],dtype=int)
+# while len(winner)!= 1:
+#     winner = []
+#     for i in range(0,len(indx)-1,2):
+#         print(f"Gen {int(indx[i])} VS Gen {int(indx[i+1])}")
+#         win, ties = simulate(1000,int(indx[i]),int(indx[i+1]),4)
+#         print(win)
+#         x = indx[i+1] if win < 0.5 else indx[i]
+#         winner = np.append(winner,int(x))
+#     indx = winner
+#print(simulate(1000,3,4,2))

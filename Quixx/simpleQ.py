@@ -431,4 +431,4 @@ def calc_dice_state_probabilities(all_possible_dice_states): #turns number of al
 # encoded = quixx.get_encoded_state(state)
 # print(encoded, "\n Length of encoded state: ", len(encoded))
 
-print(len(list(iter.product(range(1,7),repeat=4))))
+# print(len(list(iter.product(range(1,7),repeat=4))))
