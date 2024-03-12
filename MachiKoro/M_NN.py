@@ -561,7 +561,7 @@ def testParallel():
     alphaZero = AlphaZeroParallel(model, optimizer, mk, args)
     alphaZero.learn()
 
-learning_rate = 0.001
+learning_rate = 0.0001
 loss_idx = int(np.log10(learning_rate**-1))
 policy_loss_arr, value_loss_arr, total_loss_arr = [], [], []
 save_losses = True
