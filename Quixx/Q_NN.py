@@ -148,6 +148,7 @@ class NeuralNetwork3(nn.Module):
             # nn.Linear(128, 128,dtype=torch.float32),
             # nn.ReLU(),
             nn.Linear(128, 64,dtype=torch.float32),
+            nn.LayerNorm(64,dtype=torch.float32),
             nn.ReLU(),
             nn.Linear(64, 1,dtype=torch.float32),
             nn.Tanh()
@@ -439,7 +440,7 @@ class AlphaZeroParallel:
             self.optimizer.step() 
 
     def learn(self):
-        for iteration in range(5, self.args['num_iterations']):
+        for iteration in range(self.args['num_iterations']):
             memory = []
             print("Iteration ", iteration)
             self.model.eval()
@@ -483,11 +484,11 @@ class SPG:
 
 def testParallel():
     quixx = simpleQ.Quixx()
-    model = NeuralNetwork(device)
+    model = NeuralNetwork3(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
-    model.load_state_dict(torch.load(f"ModelsNN2/version_{loss_idx}_model_4.pt", map_location=device))
-    optimizer.load_state_dict(torch.load(f"ModelsNN2/version_{loss_idx}_optimizer_4.pt", map_location=device))
+    #model.load_state_dict(torch.load(f"Models/version_{loss_idx}_model_7.pt", map_location=device))
+    #optimizer.load_state_dict(torch.load(f"Models/version_{loss_idx}_optimizer_7.pt", map_location=device))
 
     args = {
         'C': 2.5,
@@ -509,6 +510,11 @@ learning_rate = 0.01 #Losses{Anzahl der Nullen der lr} Bsp. lr = 0.001 -> Losses
 loss_idx = int(np.log10(learning_rate**-1))
 policy_loss_arr, value_loss_arr, total_loss_arr = [], [], []
 save_losses = True
+#delete current loss files
+if save_losses:
+    open(f'Losses{loss_idx}/policy_loss.txt', 'w').close()
+    open(f'Losses{loss_idx}/value_loss.txt', 'w').close()
+    open(f'Losses{loss_idx}/total_loss.txt', 'w').close()
 testParallel()
 
 def simulate(num_games,P1,P2,version):
