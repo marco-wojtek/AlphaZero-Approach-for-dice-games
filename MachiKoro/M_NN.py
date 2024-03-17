@@ -28,19 +28,19 @@ class NeuralNetwork(nn.Module):
         self.device = device 
         #sqrt(input layer nodes * output layer nodes)
         self.policyHead = nn.Sequential(
-            nn.Linear(169, 128,dtype=torch.float32),# 155 or 379
+            nn.Linear(379, 256,dtype=torch.float32),#169, 155
             nn.ReLU(),
-            nn.Linear(128, 64,dtype=torch.float32),#128 128
+            nn.Linear(256, 128,dtype=torch.float32),#128 128
             nn.ReLU(),
-            nn.Linear(64, 24,dtype=torch.float32)
+            nn.Linear(128, 24,dtype=torch.float32)
         )
 
         self.valueHead = nn.Sequential(
-            nn.Linear(169, 128,dtype=torch.float32),
+            nn.Linear(379, 256,dtype=torch.float32),
             nn.ReLU(),
-            nn.Linear(128, 64,dtype=torch.float32),#64 64
+            nn.Linear(256, 128,dtype=torch.float32),#64 64
             nn.ReLU(),
-            nn.Linear(64, 1,dtype=torch.float32),
+            nn.Linear(128, 1,dtype=torch.float32),
             nn.Tanh()
         )
 
@@ -58,31 +58,31 @@ class NeuralNetwork2(nn.Module):
         self.device = device 
         #sqrt(input layer nodes * output layer nodes)
         self.policyHead = nn.Sequential(
-            nn.Linear(169, 128,dtype=torch.float32),
+            nn.Linear(379, 256,dtype=torch.float32),
             nn.ReLU(),
-            nn.Linear(128, 128,dtype=torch.float32),
+            nn.Linear(256, 256,dtype=torch.float32),
             nn.ReLU(),
-            nn.Linear(128, 128,dtype=torch.float32),
+            nn.Linear(256, 256,dtype=torch.float32),
             nn.ReLU(),
-            nn.Linear(128, 128,dtype=torch.float32),
+            nn.Linear(256, 256,dtype=torch.float32),
             nn.ReLU(),
-            nn.Linear(128, 64,dtype=torch.float32),#128 128
+            nn.Linear(256, 128,dtype=torch.float32),#128 128
             nn.ReLU(),
-            nn.Linear(64, 24,dtype=torch.float32)
+            nn.Linear(128, 24,dtype=torch.float32)
         )
 
         self.valueHead = nn.Sequential(
-            nn.Linear(169, 128,dtype=torch.float32),
+            nn.Linear(379, 256,dtype=torch.float32),
             nn.ReLU(),
-            nn.Linear(128, 128,dtype=torch.float32),
+            nn.Linear(256, 256,dtype=torch.float32),
             nn.ReLU(),
-            nn.Linear(128, 128,dtype=torch.float32),
+            nn.Linear(256, 256,dtype=torch.float32),
             nn.ReLU(),
-            nn.Linear(128, 128,dtype=torch.float32),
+            nn.Linear(256, 256,dtype=torch.float32),
             nn.ReLU(),
-            nn.Linear(128, 64,dtype=torch.float32),#64 64
+            nn.Linear(256, 128,dtype=torch.float32),#64 64
             nn.ReLU(),
-            nn.Linear(64, 1,dtype=torch.float32),
+            nn.Linear(128, 1,dtype=torch.float32),
             nn.Tanh()
         )
 
@@ -100,35 +100,35 @@ class NeuralNetwork3(nn.Module):
         self.device = device 
         #sqrt(input layer nodes * output layer nodes)
         self.policyHead = nn.Sequential(
-            nn.Linear(169, 128,dtype=torch.float32),
+            nn.Linear(379, 256,dtype=torch.float32),
+            nn.LayerNorm(256,dtype=torch.float32),
+            nn.ReLU(),
+            # nn.Linear(128, 128,dtype=torch.float32),
+            # nn.ReLU(),
+            # nn.Linear(128, 128,dtype=torch.float32),
+            # nn.ReLU(),
+            # nn.Linear(128, 128,dtype=torch.float32),
+            # nn.ReLU(),
+            nn.Linear(256, 128,dtype=torch.float32),#128 128
             nn.LayerNorm(128,dtype=torch.float32),
             nn.ReLU(),
-            # nn.Linear(128, 128,dtype=torch.float32),
-            # nn.ReLU(),
-            # nn.Linear(128, 128,dtype=torch.float32),
-            # nn.ReLU(),
-            # nn.Linear(128, 128,dtype=torch.float32),
-            # nn.ReLU(),
-            nn.Linear(128, 64,dtype=torch.float32),#128 128
-            nn.LayerNorm(64,dtype=torch.float32),
-            nn.ReLU(),
-            nn.Linear(64, 24,dtype=torch.float32)
+            nn.Linear(128, 24,dtype=torch.float32)
         )
 
         self.valueHead = nn.Sequential(
-            nn.Linear(169, 128,dtype=torch.float32),
+            nn.Linear(379, 256,dtype=torch.float32),
+            nn.LayerNorm(256,dtype=torch.float32),
+            nn.ReLU(),
+            # nn.Linear(128, 128,dtype=torch.float32),
+            # nn.ReLU(),
+            # nn.Linear(128, 128,dtype=torch.float32),
+            # nn.ReLU(),
+            # nn.Linear(128, 128,dtype=torch.float32),
+            # nn.ReLU(),
+            nn.Linear(256, 128,dtype=torch.float32),#64 64
             nn.LayerNorm(128,dtype=torch.float32),
             nn.ReLU(),
-            # nn.Linear(128, 128,dtype=torch.float32),
-            # nn.ReLU(),
-            # nn.Linear(128, 128,dtype=torch.float32),
-            # nn.ReLU(),
-            # nn.Linear(128, 128,dtype=torch.float32),
-            # nn.ReLU(),
-            nn.Linear(128, 64,dtype=torch.float32),#64 64
-            nn.LayerNorm(64,dtype=torch.float32),
-            nn.ReLU(),
-            nn.Linear(64, 1,dtype=torch.float32),
+            nn.Linear(128, 1,dtype=torch.float32),
             nn.Tanh()
         )
 
@@ -478,13 +478,13 @@ class AlphaZeroParallel:
                 self.train(memory)
 
                 if save_losses:
-                    with open(f'Losses{loss_idx}/policy_loss.txt', 'a') as f:
+                    with open(f'NewVersionCoded/ModelsNN3/Losses{loss_idx}/policy_loss.txt', 'a') as f:
                         f.write('%f \n' % np.average(policy_loss_arr))
                         f.close()
-                    with open(f'Losses{loss_idx}/value_loss.txt', 'a') as f:
+                    with open(f'NewVersionCoded/ModelsNN3/Losses{loss_idx}/value_loss.txt', 'a') as f:
                         f.write('%f \n' % np.average(value_loss_arr))
                         f.close()
-                    with open(f'Losses{loss_idx}/total_loss.txt', 'a') as f:
+                    with open(f'NewVersionCoded/ModelsNN3/Losses{loss_idx}/total_loss.txt', 'a') as f:
                         f.write('%f \n' % np.average(total_loss_arr))
                         f.close()
                     policy_loss_arr.clear()

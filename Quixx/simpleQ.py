@@ -64,7 +64,7 @@ class Quixx:
         closed = np.array([11,22]) # The closing row actions
         for n in range(len(closed)):
             cnt = len(np.where(state[player+1][n]==1)[0]) 
-            if cnt < 5: #oder 5
+            if cnt < 3: #oder 5
                 index = np.argwhere(options==closed[n])
                 options = np.delete(options,index)
             

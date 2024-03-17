@@ -449,7 +449,7 @@ class AlphaZeroParallel:
             self.optimizer.step() 
 
     def learn(self):
-        for iteration in range(self.args['num_iterations']):
+        for iteration in range(8,self.args['num_iterations']):
             memory = []
             print("Iteration ", iteration)
             self.model.eval()
@@ -474,8 +474,8 @@ class AlphaZeroParallel:
                 value_loss_arr.clear()
                 total_loss_arr.clear()
             
-            torch.save(self.model.state_dict(), f"ModelsNN3/version_{loss_idx}_model_{iteration}.pt")
-            torch.save(self.optimizer.state_dict(), f"ModelsNN3/version_{loss_idx}_optimizer_{iteration}.pt")
+            torch.save(self.model.state_dict(), f"Models/version_{loss_idx}_model_{iteration}.pt")
+            torch.save(self.optimizer.state_dict(), f"Models/version_{loss_idx}_optimizer_{iteration}.pt")
 
             # print("avg policy loss: ", np.average(policy_loss_arr))
             # print("avg value loss: ", np.average(value_loss_arr))
@@ -494,16 +494,16 @@ class SPG:
 
 def testParallel():
     yahtzee = y.Yahtzee(2)
-    model = NeuralNetwork3(device)
+    model = NeuralNetwork(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
-    #model.load_state_dict(torch.load(f"Models/version_{loss_idx}_model_7.pt", map_location=device))
-    #optimizer.load_state_dict(torch.load(f"Models/version_{loss_idx}_optimizer_7.pt", map_location=device))
+    model.load_state_dict(torch.load(f"Models/version_{loss_idx}_model_7.pt", map_location=device))
+    optimizer.load_state_dict(torch.load(f"Models/version_{loss_idx}_optimizer_7.pt", map_location=device))
 
     args = {
         'C': 2.5,
         'num_searches': 250,
-        'num_iterations': 8,
+        'num_iterations': 16,
         'num_selfPlay_iterations': 60,
         "num_parallel_games" : 20,
         'num_epochs': 6,
@@ -516,7 +516,7 @@ def testParallel():
     alphaZero = AlphaZeroParallel(model, optimizer, yahtzee, args)
     alphaZero.learn()
 
-learning_rate = 0.01
+learning_rate = 0.001
 loss_idx = int(np.log10(learning_rate**-1))
 policy_loss_arr, value_loss_arr, total_loss_arr = [], [], []
 save_losses = False
