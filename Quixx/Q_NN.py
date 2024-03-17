@@ -452,21 +452,21 @@ class AlphaZeroParallel:
                 self.train(memory)
 
                 if save_losses:
-                    with open(f'Losses{loss_idx}/policy_loss.txt', 'a') as f:
+                    with open(f'diffRules/Models/Losses{loss_idx}/policy_loss.txt', 'a') as f:
                         f.write('%f \n' % np.average(policy_loss_arr))
                         f.close()
-                    with open(f'Losses{loss_idx}/value_loss.txt', 'a') as f:
+                    with open(f'diffRules/Models/Losses{loss_idx}/value_loss.txt', 'a') as f:
                         f.write('%f \n' % np.average(value_loss_arr))
                         f.close()
-                    with open(f'Losses{loss_idx}/total_loss.txt', 'a') as f:
+                    with open(f'diffRules/Models/Losses{loss_idx}/total_loss.txt', 'a') as f:
                         f.write('%f \n' % np.average(total_loss_arr))
                         f.close()
                 policy_loss_arr.clear()
                 value_loss_arr.clear()
                 total_loss_arr.clear()
             
-            torch.save(self.model.state_dict(), f"ModelsNN3/version_{loss_idx}_model_{iteration}.pt")
-            torch.save(self.optimizer.state_dict(), f"ModelsNN3/version_{loss_idx}_optimizer_{iteration}.pt")
+            torch.save(self.model.state_dict(), f"diffRules/Models/version_{loss_idx}_model_{iteration}.pt")
+            torch.save(self.optimizer.state_dict(), f"diffRules/Models/version_{loss_idx}_optimizer_{iteration}.pt")
             # print("avg policy loss: ", np.average(policy_loss_arr))
             # print("avg value loss: ", np.average(value_loss_arr))
             # print("avg total loss: ", np.average(total_loss_arr))
@@ -484,7 +484,7 @@ class SPG:
 
 def testParallel():
     quixx = simpleQ.Quixx()
-    model = NeuralNetwork3(device)
+    model = NeuralNetwork(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
     #model.load_state_dict(torch.load(f"Models/version_{loss_idx}_model_7.pt", map_location=device))
@@ -509,12 +509,12 @@ def testParallel():
 learning_rate = 0.01 #Losses{Anzahl der Nullen der lr} Bsp. lr = 0.001 -> Losses3
 loss_idx = int(np.log10(learning_rate**-1))
 policy_loss_arr, value_loss_arr, total_loss_arr = [], [], []
-save_losses = True
+save_losses =  True
 #delete current loss files
 if save_losses:
-    open(f'Losses{loss_idx}/policy_loss.txt', 'w').close()
-    open(f'Losses{loss_idx}/value_loss.txt', 'w').close()
-    open(f'Losses{loss_idx}/total_loss.txt', 'w').close()
+    open(f'diffRules/Models/Losses{loss_idx}/policy_loss.txt', 'w').close()
+    open(f'diffRules/Models/Losses{loss_idx}/value_loss.txt', 'w').close()
+    open(f'diffRules/Models/Losses{loss_idx}/total_loss.txt', 'w').close()
 testParallel()
 
 def simulate(num_games,P1,P2,version):
