@@ -35,5 +35,5 @@ def loss_img(game_idx,NN_id,x):
     plt.grid(axis='x')
     plt.legend(loc="lower right")
     plt.show()
-#loss_img(1,1,0)
+#loss_img(1,2,2)
 #open('policy_loss.txt', 'w').close()

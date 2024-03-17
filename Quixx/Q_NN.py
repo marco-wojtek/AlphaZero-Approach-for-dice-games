@@ -509,13 +509,13 @@ def testParallel():
 learning_rate = 0.01 #Losses{Anzahl der Nullen der lr} Bsp. lr = 0.001 -> Losses3
 loss_idx = int(np.log10(learning_rate**-1))
 policy_loss_arr, value_loss_arr, total_loss_arr = [], [], []
-save_losses = True
+save_losses = False
 #delete current loss files
 if save_losses:
     open(f'Losses{loss_idx}/policy_loss.txt', 'w').close()
     open(f'Losses{loss_idx}/value_loss.txt', 'w').close()
     open(f'Losses{loss_idx}/total_loss.txt', 'w').close()
-testParallel()
+#testParallel()
 
 def simulate(num_games,P1,P2,version):
     if not P1 is None:
@@ -608,4 +608,4 @@ def img_for_simulation():
     plt.legend(loc="lower right")
     plt.show()
 
-#img_for_simulation()
+img_for_simulation()

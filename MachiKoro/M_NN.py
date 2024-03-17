@@ -28,7 +28,7 @@ class NeuralNetwork(nn.Module):
         self.device = device 
         #sqrt(input layer nodes * output layer nodes)
         self.policyHead = nn.Sequential(
-            nn.Linear(155, 128,dtype=torch.float32),
+            nn.Linear(169, 128,dtype=torch.float32),# 155 or 379
             nn.ReLU(),
             nn.Linear(128, 64,dtype=torch.float32),#128 128
             nn.ReLU(),
@@ -36,7 +36,7 @@ class NeuralNetwork(nn.Module):
         )
 
         self.valueHead = nn.Sequential(
-            nn.Linear(155, 128,dtype=torch.float32),
+            nn.Linear(169, 128,dtype=torch.float32),
             nn.ReLU(),
             nn.Linear(128, 64,dtype=torch.float32),#64 64
             nn.ReLU(),
@@ -58,7 +58,7 @@ class NeuralNetwork2(nn.Module):
         self.device = device 
         #sqrt(input layer nodes * output layer nodes)
         self.policyHead = nn.Sequential(
-            nn.Linear(155, 128,dtype=torch.float32),
+            nn.Linear(169, 128,dtype=torch.float32),
             nn.ReLU(),
             nn.Linear(128, 128,dtype=torch.float32),
             nn.ReLU(),
@@ -72,7 +72,7 @@ class NeuralNetwork2(nn.Module):
         )
 
         self.valueHead = nn.Sequential(
-            nn.Linear(155, 128,dtype=torch.float32),
+            nn.Linear(169, 128,dtype=torch.float32),
             nn.ReLU(),
             nn.Linear(128, 128,dtype=torch.float32),
             nn.ReLU(),
@@ -100,7 +100,7 @@ class NeuralNetwork3(nn.Module):
         self.device = device 
         #sqrt(input layer nodes * output layer nodes)
         self.policyHead = nn.Sequential(
-            nn.Linear(155, 128,dtype=torch.float32),
+            nn.Linear(169, 128,dtype=torch.float32),
             nn.LayerNorm(128,dtype=torch.float32),
             nn.ReLU(),
             # nn.Linear(128, 128,dtype=torch.float32),
@@ -116,7 +116,7 @@ class NeuralNetwork3(nn.Module):
         )
 
         self.valueHead = nn.Sequential(
-            nn.Linear(155, 128,dtype=torch.float32),
+            nn.Linear(169, 128,dtype=torch.float32),
             nn.LayerNorm(128,dtype=torch.float32),
             nn.ReLU(),
             # nn.Linear(128, 128,dtype=torch.float32),
@@ -151,20 +151,26 @@ class Node:
 
         self.action_taken = action_taken
         self.ischance = ischance
-        self.dices = dices
         self.has_used_rethrow = has_used_rethrow
         self.prior = prior
-        self.expandable_moves = calc_dice_state_probabilities(len(dices)) if ischance else None
+        self.expandable_moves = calc_dice_state_probabilities(dices) if ischance else None
         self.visit_count = visit_count
         self.value_sum = 0
 
     def is_fully_expanded(self):
-        return len(self.children) > 0
+        return len(self.children) > 0 or self.ischance
     
     def select(self):
         if self.ischance:
             dsp = self.expandable_moves
             outcome = r.choices(list(dsp.keys()),list(dsp.values()))[0]
+            if not outcome in self.children:
+                child_state = copy.deepcopy(self.state)
+                child_state[0] = np.array(list(outcome),dtype=int)
+                if self.has_used_rethrow or child_state[3][self.active_player][3]==0:
+                    self.game.distribution(child_state,self.active_player)
+                child = Node(self.game,self.args,child_state,self.active_player,self,None,False,None,self.has_used_rethrow)
+                self.children[outcome] = child
             return self.children[outcome]
         
         best_child = None
@@ -189,52 +195,31 @@ class Node:
         #return q_value + self.args['C'] * math.sqrt(math.log(self.visit_count) / child.visit_count) 
         return q_value + self.args['C'] * (math.sqrt(self.visit_count) / (child.visit_count + 1)) * child.prior 
     
-    def expand(self, policy):
-        if self.ischance:
-            for dices in self.expandable_moves.keys():
-                d = [int(x) for x in dices]
+    def expand(self, policy):      
+        for action, prob in enumerate(policy):
+            if prob > 0:
                 child_state = copy.deepcopy(self.state)
-                can_rethrow = self.state[2][self.active_player][3]
-                if not can_rethrow or self.has_used_rethrow:
-                    self.game.distribution(child_state,self.active_player,np.array(d))
-                child = Node(self.game,self.args,child_state,self.active_player,self,None,False,np.array(d),self.has_used_rethrow)
-                self.children[dices] = child
-        else:
-            for action, prob in enumerate(policy):
-                if prob > 0:
-                    child_state = copy.deepcopy(self.state)
-                    if action <= 19:
-                        child_state = self.game.get_next_state(child_state,self.active_player,action)
-                        assert self.dices is not None
-                        #case: Player doesn't have upgrade 1 (dice choice), so the child doesn't need to decide on num of dice because only one option possible
-                        #the following block can be skipped since upgrade 3 (extra turn) is only possible with 2 dice thus needing upgrade 1 (dice choice)
-                        if child_state[2][self.active_player][0] == 0:
-                            child = Node(self.game, self.args, child_state, (self.active_player+1) % len(child_state[0]), self, action, True, np.array([0]), False, prob)
-                            child.expand(None)
-                        else:
-                            if  child_state[2][self.active_player][2] and (np.count_nonzero(self.dices == np.max(self.dices)) == 2):
-                                p = self.active_player
-                            else:
-                                p = (self.active_player+1) % len(child_state[0])
+                if action <= 19:
+                    child_state = self.game.get_next_state(child_state,self.active_player,action)
+                    if child_state[3][self.active_player][2] and (child_state[0][0] == child_state[0][1]):
+                        p = self.active_player
+                    else:
+                        p = (self.active_player+1) % len(child_state[1])
+                    
+                    child_state[0] = machikoro.dice(0)
+                    if child_state[3][p][0] == 0:
+                        child = Node(self.game, self.args, child_state, p, self, action, True, 1, False, prob)
+                    else:
+                        child = Node(self.game, self.args, child_state, p, self, action, False, None, False, prob)
 
-                            child = Node(self.game,self.args,child_state,p, self, action, False, None, False, prob)
-                    elif action == 22:
-                        self.game.distribution(child_state,self.active_player,np.array([int(x) for x in self.dices]))
-                        child = Node(self.game,self.args,child_state,self.active_player,self,action,False,self.dices,False,prob)
-                    else:#action in (20,21,23)
-                        dice = np.array([0]) if action == 20 else np.array([0,0]) if action == 21 else self.dices
-                        child = Node(self.game, self.args, child_state, self.active_player, self, action, True, dice, action==23, prob)
-                        child.expand(None)
-                    self.children[action] = child
+                elif action == 22:
+                    self.game.distribution(child_state,self.active_player)
+                    child = Node(self.game, self.args, child_state, self.active_player, self,action, False, None, False, prob)
+                else:#action in (20,21,23)
+                    dice = 1 if action == 20 else 2 if action == 21 else np.count_nonzero(child_state[0])
+                    child = Node(self.game, self.args, child_state, self.active_player, self, action, True, dice, action==23, prob)
+                self.children[action] = child
       
-    # def backpropagate(self,value):
-    #     self.value_sum += value 
-    #     self.visit_count += 1
-        
-    #     if self.parent is not None:
-    #         if self.active_player != self.parent.active_player:
-    #             value = -value
-    #         self.parent.backpropagate(value) 
     def backpropagate(self,value):#iterativ backpropagation since recursive threw error
         node = self
         while not node is None:
@@ -250,6 +235,8 @@ def calc_dice_state_probabilities(num_of_dice):
     dice_state_probabilities = {}
     for d_state in all_possible_dice_states:
         index = ''.join(str(x) for x in np.sort(d_state))
+        if num_of_dice == 1:
+            index = ''.join([index,'0'])
         if index not in dice_state_probabilities:
             dice_state_probabilities[index] = 0
         dice_state_probabilities[index] += 1
@@ -266,21 +253,21 @@ class MCTSParallel:
     
     #returns the probabilities for the possible actions
     @torch.no_grad()
-    def search(self,states,spGames,player,last_action,dices=None):
+    def search(self,states,spGames,player,last_action,dice_choice_available,rethrow_choice_available):
         
         #dirichlet variant
         _, policy = self.model(torch.tensor(self.game.get_encoded_states(states),device=self.model.device,dtype=torch.float32))
         policy = torch.softmax(policy,1).detach().cpu().numpy()
         policy = (1 - self.args['dirichlet_epsilon']) * policy + self.args['dirichlet_epsilon'] * np.random.dirichlet([self.args['dirichlet_alpha']] * len(policy[0]), size=policy.shape[0])
         for i,spg in enumerate(spGames):
-            spg.root = Node(self.game,self.args,states[i],player[i],None,last_action[i],False,dices[i],visit_count=1)
+            spg.root = Node(self.game,self.args,states[i],player[i],None,last_action[i],False,states[i][0],not rethrow_choice_available[i],visit_count=1)
             spg_policy = policy[i]
 
             node = spg.root
-            if node.action_taken is not None and node.action_taken <= 19:
+            if dice_choice_available[i]:
                     spg_policy[:20] = 0
                     spg_policy[22:] = 0
-            elif node.action_taken is None and node.state[2][node.active_player][3] and (node.parent is None or node.has_used_rethrow == False):
+            elif rethrow_choice_available[i]:
                 spg_policy[:22] = 0                  
             else:
                 valid_moves = self.game.get_valid_moves(node.state,node.active_player)
@@ -309,7 +296,7 @@ class MCTSParallel:
 
                 while node.is_fully_expanded():
                     node = node.select()
-                
+                assert node.ischance == False
                 winner, is_terminal = self.game.is_terminated(node.state)
                 value = -1**(winner)
 
@@ -337,7 +324,7 @@ class MCTSParallel:
                 #parent of a possible rethrow decision node is always a chance node:
                     #children of chance nodes have always action_taken = None and if before a chance node a rethrow decision was used (action 23) then the chance node
                     #has the attribute has_used_rethrow=True
-                elif node.action_taken is None and node.state[2][node.active_player][3] and (node.parent is None or node.has_used_rethrow == False):
+                elif node.state[3][node.active_player][3] and node.action_taken is None and (node.parent is None or node.has_used_rethrow == False):
                     spg_policy[:22] = 0                  
                 else:
                     valid_moves = self.game.get_valid_moves(node.state,node.active_player)
@@ -366,29 +353,18 @@ class AlphaZeroParallel:
 
         player = len(spGames)*[0]
         action = len(spGames)*[None]
-        dices = len(spGames)*[None]
         dice_choice_available = len(spGames)*[False]
         rethrow_choice_available = len(spGames)*[False]
         zero_cnt = len(spGames)*[0]
         while len(spGames) > 0:
             states = np.stack([spg.state for spg in spGames])
             for i in range(len(spGames))[::-1]:
-                if not dice_choice_available[i] and not rethrow_choice_available[i]:
-                    if dices[i] is None:
-                        dices[i] = machikoro.dice(1)
-                    self.game.distribution(states[i],player[i],dices[i])
-                    assert np.all(states[i][0]<64)
-
-                elif dices[i] is None and not dice_choice_available[i] and rethrow_choice_available[i]:
-                    dices[i] = machikoro.dice(1)
-                
-                #special case:
-                # while none of these upgrades are available the search method would be called with action <= 19 which leads to a search with action_probs
-                # at 100% for dice choice one (20) since the other option is not unlocked yet 
-                if action[i] is not None and action[i] <= 19 and not dice_choice_available[i] and not rethrow_choice_available[i]:
-                    action[i] = 99
-
-            self.mcts.search(states,spGames,player,action,dices)
+                #dice not thrown yet
+                if not dice_choice_available[i] and np.sum(states[i][0]) == 0:
+                    states[i][0] = machikoro.dice(1)
+                if not rethrow_choice_available[i] and np.sum(states[i][0]) > 0:
+                    self.game.distribution(states[i],player[i])
+            self.mcts.search(states,spGames,player,action,dice_choice_available,rethrow_choice_available)
 
             for i in range(len(spGames))[::-1]:
                 spg = spGames[i]
@@ -405,22 +381,20 @@ class AlphaZeroParallel:
 
                 temperature_action_probs = action_probs ** (1 / self.args['temperature'])#squishes the values together to allow more exploration
                 if dice_choice_available[i]:
-
                     action[i] = r.choices(np.arange(len(action_probs)),temperature_action_probs)[0]
-                    dices[i] = machikoro.dice(action[i]-19)                   
-
+                    states[i][0] = machikoro.dice(action[i]-19)                   
                     dice_choice_available[i] = False                  
                 elif rethrow_choice_available[i]:
-
+                    
                     action[i] = r.choices(np.arange(len(action_probs)),temperature_action_probs)[0] 
-
-                    dices[i] = machikoro.dice(len(dices[i])) if (action[i] - 22) else dices[i]
-
+                    assert action[i] == 23 or action[i] == 22
+                    if action[i] == 23:
+                        states[i][0] = machikoro.dice(np.count_nonzero(states[i][0])) 
                     rethrow_choice_available[i] = False
                 else:
 
                     action[i] = r.choices(np.arange(len(action_probs)),temperature_action_probs)[0]
-
+                    assert action[i] in range(0,20)
                     spg.state = self.game.get_next_state(spg.state,player[i],action[i])
 
                     winner, is_terminal = self.game.is_terminated(spg.state)
@@ -437,7 +411,6 @@ class AlphaZeroParallel:
                         del spGames[i]
                         del player[i]
                         del action[i]
-                        del dices[i]
                         del dice_choice_available[i]
                         del rethrow_choice_available[i]
                         del zero_cnt[i]
@@ -445,15 +418,14 @@ class AlphaZeroParallel:
                                                              
                     #zero_cnt[i] =  zero_cnt[i]+1 if action[i] == 0 else 0 if action[i] <= 19 else zero_cnt[i]
                     
-                    if action[i] in range(0,20):
-                        # if doublets thrown and upgrade 3 available the player gets another chance
-                        if spg.state[2][player[i]][2] and (np.count_nonzero(dices[i] == np.max(dices[i])) == 2):
-                            player[i] = player[i]
-                        else:
-                            player[i] = (player[i] +1) % len(spg.state[0])
-                        dice_choice_available[i] = spg.state[2][player[i]][0]
-                        rethrow_choice_available[i] = spg.state[2][player[i]][3]
-                        dices[i] = None
+                    # if doublets thrown and upgrade 3 available the player gets another chance
+                    if spg.state[3][player[i]][2] and (states[i][0][0] == states[i][0][1]):
+                        player[i] = player[i]
+                    else:
+                        player[i] = (player[i] +1) % len(spg.state[1])
+                    dice_choice_available[i] = spg.state[3][player[i]][0] == 1
+                    rethrow_choice_available[i] = spg.state[3][player[i]][3] == 1
+                    states[i][0] = machikoro.dice(0)
 
         return return_memory
 
@@ -519,8 +491,8 @@ class AlphaZeroParallel:
                     value_loss_arr.clear()
                     total_loss_arr.clear()
 
-            torch.save(self.model.state_dict(), f"ModelsNN3/version_{loss_idx}_model_{iteration}.pt")
-            torch.save(self.optimizer.state_dict(), f"ModelsNN3/version_{loss_idx}_optimizer_{iteration}.pt")
+            torch.save(self.model.state_dict(), f"version_{loss_idx}_model_{iteration}.pt")
+            torch.save(self.optimizer.state_dict(), f"version_{loss_idx}_optimizer_{iteration}.pt")
 
             #get average loss
             # print("avg policy loss: ", np.average(policy_loss_arr))
@@ -541,7 +513,7 @@ class SPG:
 def testParallel():
     mk = machikoro.Machikoro()
     model = NeuralNetwork3(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)#0.001
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
     #model.load_state_dict(torch.load(f"Models/version_{loss_idx}_model_7.pt", map_location=device))
     #optimizer.load_state_dict(torch.load(f"Models/version_{loss_idx}_optimizer_7.pt", map_location=device))
@@ -556,7 +528,7 @@ def testParallel():
         'batch_size': 64,#64
         'temperature': 1.3,
         'dirichlet_epsilon': 0.25,
-        'dirichlet_alpha': 0.15
+        'dirichlet_alpha': 0.2
     }
 
     alphaZero = AlphaZeroParallel(model, optimizer, mk, args)
@@ -565,21 +537,22 @@ def testParallel():
 learning_rate = 0.01
 loss_idx = int(np.log10(learning_rate**-1))
 policy_loss_arr, value_loss_arr, total_loss_arr = [], [], []
-save_losses = True
+save_losses = False
 #delete current loss files
 if save_losses:
     open(f'Losses{loss_idx}/policy_loss.txt', 'w').close()
     open(f'Losses{loss_idx}/value_loss.txt', 'w').close()
     open(f'Losses{loss_idx}/total_loss.txt', 'w').close()
-testParallel()
+#
+#testParallel()
 
 def simulate(num_games,P1,P2,version):
     if not P1 is None:
-        P1model = NeuralNetwork(device)
+        P1model = NeuralNetwork2(device)
         P1optimizer = torch.optim.Adam(P1model.parameters(), lr=1**-version)
 
-        P1model.load_state_dict(torch.load(f"Models/version_{version}_model_{P1}.pt", map_location=device))
-        P1optimizer.load_state_dict(torch.load(f"Models/version_{version}_optimizer_{P1}.pt", map_location=device))
+        P1model.load_state_dict(torch.load(f"ModelsNN2/version_{version}_model_{P1}.pt", map_location=device))
+        P1optimizer.load_state_dict(torch.load(f"ModelsNN2/version_{version}_optimizer_{P1}.pt", map_location=device))
         P1model.eval()
     else:
         P1model = None
@@ -605,7 +578,7 @@ def simulate(num_games,P1,P2,version):
         state = mk.get_initial_state(2)
 
         action = None
-        dices = machikoro.dice(1)
+        state[0] = machikoro.dice(1)
         dice_choice_available = False
         rethrow_choice_available = False
         zero_cnt = 0
@@ -624,7 +597,7 @@ def simulate(num_games,P1,P2,version):
                     action = np.argmax(policy)
                 else:
                     action = r.choice([20,21])
-                dices = machikoro.dice(action-19)
+                state[0] = machikoro.dice(action-19)
                 dice_choice_available = False
             elif rethrow_choice_available:
                 if not player_types[player] is None:
@@ -633,11 +606,11 @@ def simulate(num_games,P1,P2,version):
                     action = np.argmax(policy)
                 else:
                     action = r.choice([22,23])
-                
-                dices = machikoro.dice(len(dices)) if action-22 else dices
+                if action==23:
+                    state[0] = machikoro.dice(np.count_nonzero(state[0])) 
                 rethrow_choice_available = False
             else:
-                mk.distribution(state,player,dices)
+                mk.distribution(state,player)
                 v = mk.get_valid_moves(state,player)
                 if not player_types[player] is None:
                     for i in range(len(policy)):
@@ -665,13 +638,13 @@ def simulate(num_games,P1,P2,version):
                     zero_cnt = 0
                 
                 if action in range(20):
-                    if len(dices)==2 and state[2][player][2] and dices[0]==dices[1]:
+                    if state[2][player][2] and state[0][0]==state[0][1]:
                         player = player
                     else:
-                        player = (player +1) % len(state[0])
+                        player = (player +1) % len(state[1])
                     dice_choice_available = state[2][player][0]
                     rethrow_choice_available = state[2][player][3]
-                    dices = machikoro.dice(1)
+                    state[0] = machikoro.dice(1)
     return 1-(np.sum(winr)/(num_games-ties)),ties
 
 def img_for_simulation():
@@ -691,4 +664,4 @@ def img_for_simulation():
     plt.legend(loc="lower right")
     plt.show()
 
-#img_for_simulation()
+img_for_simulation()

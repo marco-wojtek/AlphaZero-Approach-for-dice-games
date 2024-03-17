@@ -22,99 +22,99 @@ class Machikoro:
         game_board[6:9] = num_players
         #disable trading and stealing 5
         game_board[7:9] = 0
-        return np.array([player_bank,player_cards,player_upgrades,game_board],dtype=object)
+        return np.array([np.zeros(2,dtype=int),player_bank,player_cards,player_upgrades,game_board],dtype=object)
     
     def get_next_state(self,state,player,action):#action is the choice if and which card is to buy #action 0 is always = "do nothing" 
         if action in np.arange(1,16):
             #basic action like buying a card
-            state[0][player] -= self.card_costs[action-1]
-            state[1][player][action-1] += 1 
-            state[3][action-1] -= 1
+            state[1][player] -= self.card_costs[action-1]
+            state[2][player][action-1] += 1 
+            state[4][action-1] -= 1
         elif action in np.arange(16,20):#upgrade
-            state[0][player] -= self.card_costs[action-1]
-            state[2][player][action-16] = 1
+            state[1][player] -= self.card_costs[action-1]
+            state[3][player][action-16] = 1
         elif action in np.arange(20,22):#if this action is chosen the current player has another action except stealing
             #stealing 5 coins
             #20/21/22 means steal 5 coins from player curr_player+1, curr_player+2, curr_player+3
-            coins = state[0][(player+(action-19))%len(state[0])]
-            state[0][player] = state[0][player]+coins if coins < 5 else state[0][player]+5
-            state[0][(player+(action-19))%len(state[0])] = 0 if coins <5 else state[0][(player+(action-19))%len(state[0])]-5 
+            coins = state[1][(player+(action-19))%len(state[1])]
+            state[1][player] = state[1][player]+coins if coins < 5 else state[1][player]+5
+            state[1][(player+(action-19))%len(state[1])] = 0 if coins <5 else state[1][(player+(action-19))%len(state[1])]-5 
             return state
         return state
     
-    def distribution(self,state,player,dice):
+    def distribution(self,state,player):
         current_player = player 
-        dice_sum = np.sum(dice)
+        dice_sum = np.sum(state[0])
         #order of distribution
         #active player first makes his payments bc of others red cards then all players collect their coins then active player may take from other players
         if dice_sum in [3,9,10]:#red cards
-            current_player = current_player-1 if current_player>0 else (len(state[0])-1)
+            current_player = current_player-1 if current_player>0 else (len(state[1])-1)
             #counterclockwise payment iteration
             while current_player != player:
                 #action with regards to upgrades
-                coins = state[1][current_player][3] + (state[1][current_player][3]*state[2][current_player][1]) if dice_sum == 3 else (2*state[1][current_player][12]) + (state[1][current_player][12]*state[2][current_player][1])
-                if state[0][player] > coins:
-                    state[0][player] -= coins
-                    state[0][current_player] += coins
+                coins = state[2][current_player][3] + (state[2][current_player][3]*state[3][current_player][1]) if dice_sum == 3 else (2*state[2][current_player][12]) + (state[2][current_player][12]*state[3][current_player][1])
+                if state[1][player] > coins:
+                    state[1][player] -= coins
+                    state[1][current_player] += coins
                 else: 
-                    state[0][current_player] += state[0][player]
-                    state[0][player] = 0
-                current_player = current_player-1 if current_player>0 else (len(state[0])-1)
+                    state[1][current_player] += state[1][player]
+                    state[1][player] = 0
+                current_player = current_player-1 if current_player>0 else (len(state[1])-1)
         if dice_sum in [1,2,5,9,10]:#blue cards
             #clockwise collecting iteration
             while True:
                 #action with regards to upgrades
                 if dice_sum == 1:
-                    coins = state[1][current_player][0]
+                    coins = state[2][current_player][0]
                 elif dice_sum == 2:
-                    coins = state[1][current_player][1]
+                    coins = state[2][current_player][1]
                 elif dice_sum == 5:
-                    coins = state[1][current_player][5]
+                    coins = state[2][current_player][5]
                 elif dice_sum == 9:
-                    coins = state[1][current_player][11] * 5
+                    coins = state[2][current_player][11] * 5
                 else:
-                    coins = state[1][current_player][13] * 3
-                state[0][current_player] += coins
-                current_player = (current_player+1)%len(state[0])
+                    coins = state[2][current_player][13] * 3
+                state[1][current_player] += coins
+                current_player = (current_player+1)%len(state[1])
                 if current_player == player:
                     break
         if dice_sum in [2,3,4,7,8,11,12]:#green cards
             if dice_sum in [2,3] :
-                state[0][current_player] += state[1][current_player][2]
+                state[1][current_player] += state[2][current_player][2]
             elif dice_sum == 4:
-                state[0][current_player] += state[1][current_player][4]*3
+                state[1][current_player] += state[2][current_player][4]*3
             elif dice_sum == 7:
-                state[0][current_player] += state[1][current_player][9] * state[1][current_player][1] * 3
+                state[1][current_player] += state[2][current_player][9] * state[2][current_player][1] * 3
             elif dice_sum == 8:
-                state[0][current_player] += state[1][current_player][10] * (state[1][current_player][5]+state[1][current_player][11]) * 3
+                state[1][current_player] += state[2][current_player][10] * (state[2][current_player][5]+state[2][current_player][11]) * 3
             else:
-                state[0][current_player] += state[1][current_player][14] * (state[1][current_player][0]+state[1][current_player][13]) * 2
+                state[1][current_player] += state[2][current_player][14] * (state[2][current_player][0]+state[2][current_player][13]) * 2
         if dice_sum == 6:#buffed take two
-            current_player = (current_player+1)%len(state[0])
-            while True and state[1][player][6]>0:
-                if state[0][current_player] >= 3:
-                    state[0][current_player] -= 3
-                    state[0][player] += 3
+            current_player = (current_player+1)%len(state[1])
+            while True and state[2][player][6]>0:
+                if state[1][current_player] >= 3:
+                    state[1][current_player] -= 3
+                    state[1][player] += 3
                 else:
-                    state[0][player] += state[0][current_player]
-                    state[0][current_player] = 0
-                current_player = (current_player+1)%len(state[0])
+                    state[1][player] += state[1][current_player]
+                    state[1][current_player] = 0
+                current_player = (current_player+1)%len(state[1])
                 if current_player == player:
                     break
         #limiter for coin stack        
-        for n in range(len(state[0])):
-            if state[0][n] > 63:
-                state[0][n] = 63
+        for n in range(len(state[1])):
+            if state[1][n] > 63:
+                state[1][n] = 63
 
     def get_valid_moves(self,state,player,can_steal = False):#active Stealing disabled for 2 players bc coins are always taken from opponent
         #first check which cards are available, afterwards filter the too expensive ones #regard upgrade actions stealing 5 coins or swapping cards which are handled before the card option
-        num_coins = state[0][player]
-        available_cards = (state[3]>0)
+        num_coins = state[1][player]
+        available_cards = (state[4]>0)
         for n in range(len(available_cards)):
             if n not in [6,7,8]:
                 available_cards[n] =  available_cards[n] and (num_coins >= self.card_costs[n])
             else:
-                available_cards[n] = (state[1][player][n] == 0) and (num_coins >= self.card_costs[n])
+                available_cards[n] = (state[2][player][n] == 0) and (num_coins >= self.card_costs[n])
                 #TRADING DISABLED bc of too high complexity
                 if n == 8 or n == 7:
                     available_cards[n] = False
@@ -125,62 +125,68 @@ class Machikoro:
         upgrade_cost = np.array([4,10,16,22])
         upgrade_index = np.array([16,17,18,19])
         for i in range(len(upgrade_cost)):
-            if num_coins >= upgrade_cost[i] and state[2][player][i] == 0:
+            if num_coins >= upgrade_cost[i] and state[3][player][i] == 0:
                 available_cards = np.append(available_cards,upgrade_index[i])
 
         steal_index = np.array([20,21,22])
-        if state[1][player][7] and can_steal:
-            available_cards = np.append(available_cards,steal_index[:len(state[0])-1])
+        if state[2][player][7] and can_steal:
+            available_cards = np.append(available_cards,steal_index[:len(state[1])-1])
         return available_cards.astype(int)
     
     def is_terminated(self,state):
-        unlocked_all_upgrades = [np.all(state[2][i]) for i in range(len(state[2]))]
+        unlocked_all_upgrades = [np.all(state[3][i]) for i in range(len(state[3]))]
         terminal = np.any(unlocked_all_upgrades) 
         winner = np.argmax(unlocked_all_upgrades) if terminal else -1
         return winner, terminal
 
     def get_expected_reward(self,state,player,two_dice=0):
-        xR = np.zeros(len(state[0]))
+        xR = np.zeros(len(state[1]))
         dice_values = np.arange(2,13) if two_dice==1 else np.arange(1,7)
         probs = dice_probs if two_dice==1 else np.zeros(12) + 1/6
         for val in dice_values:
             state_copy = copy.deepcopy(state)
-            if val == 6 and state[1][player][7]: #if 5 coins might be stolen subtract the expected stolen value being own_coins/sum_coins bc the more coins one has the more likely the coins are being stolen
-                collective_coins = np.sum(state[0])-state[0][player] 
-                for i in range(len(state[0])):
+            if val == 6 and state[2][player][7]: #if 5 coins might be stolen subtract the expected stolen value being own_coins/sum_coins bc the more coins one has the more likely the coins are being stolen
+                collective_coins = np.sum(state[1])-state[1][player] 
+                for i in range(len(state[1])):
                     if i != player and collective_coins>0:
-                        xR[i] = xR[i]- (1/6 * 5 * (state[0][i] / collective_coins))
+                        xR[i] = xR[i]- (1/6 * 5 * (state[1][i] / collective_coins))
             self.distribution(state_copy,player,val)
-            xR = xR + ((state_copy[0] - state[0])*probs[val])    
+            xR = xR + ((state_copy[0] - state[1])*probs[val])    
         return xR
 
     def expected_reward_after_one_roatation(self,state):
-        xR = np.zeros(len(state[0]))
-        for i in range(len(state[0])):
+        xR = np.zeros(len(state[1]))
+        for i in range(len(state[1])):
             reward = self.get_expected_reward(state,i)
-            if state[2][i][0]:
+            if state[3][i][0]:
                 reward = (reward + self.get_expected_reward(state,i,1))/2
             xR = xR + reward
         return xR
     
     def get_encoded_state(self,state):# encoded as P0 Coins, P1 Coins, P0 cards+upgrades, P1 cards+upgrades, Cards on gameboard
         encoded = np.array([])
-        for i in range(len(state[0])):
-            encoded = np.append(encoded,get_binary(state[0][i]))
-        for i in range(len(state[0])):
-            encoded = np.append(encoded,state[1][i]>0)
-            encoded = np.append(encoded,state[2][i])
+        encoded = np.append(encoded,get_one_hot(state[0][0]+1,7))
+        encoded = np.append(encoded,get_one_hot(state[0][1]+1,7))
+        for i in range(len(state[1])):
+            encoded = np.append(encoded,get_binary(state[1][i]))
+
+        for i in range(len(state[1])):
+            for card in state[2][i]:
+                encoded = np.append(encoded,get_one_hot(card+1,8))
+            #encoded = np.append(encoded,state[2][i]>0)
+            encoded = np.append(encoded,state[3][i])
         #new
-        for card in state[3]:
+        for card in state[4]:
             encoded = np.append(encoded,get_one_hot(card+1,7))
-        #return np.append(encoded,state[3]>0) #old
+        #return np.append(encoded,state[4]>0) #old
         return encoded
     
     def get_encoded_states(self,states):
-        stack = np.array([np.zeros(155)])#65
-        for st in states:
+        stack = np.array([self.get_encoded_state(states[0])])
+        for i in range(1,len(states)):
+            st = states[i]
             stack = np.append(stack,[self.get_encoded_state(st)],axis=0)
-        return stack[1:]
+        return stack
 
 def get_one_hot(num,size):
     one_hot = np.zeros(size)
@@ -207,7 +213,12 @@ dice_probs = {
         } 
 #throws always two dice
 def dice(size):
-    return random.randint(1,7,size=(size))
+    d = random.randint(1,7,size=(2))
+    if size == 1:
+        d[1] = 0
+    elif size == 0:
+        d[:] = 0
+    return d
 
 def random_bot_action(valid_actions):
     return r.choice(valid_actions)
@@ -241,7 +252,7 @@ def gameloop(iterations,playerIds):
     x = np.array([np.zeros(len(playerIds))])
     round_count = np.array([0])
     for i in tqdm(range(iterations)):
-        Machikoro = machikoro()
+        machikoro = Machikoro()
         state = Machikoro.get_initial_state(len(playerIds))
         player = 0
         round = 0
@@ -250,7 +261,7 @@ def gameloop(iterations,playerIds):
             round += 1
             j = 1
             #UPGRADE 1 HANDLING
-            if state[2][player][0]:#choose one or two dice
+            if state[3][player][0]:#choose one or two dice
                 if playerIds[player]>=1:    
                     a = Machikoro.get_expected_reward(state,player,1)[player]
                     b = Machikoro.get_expected_reward(state,player,2)[player]
@@ -260,7 +271,7 @@ def gameloop(iterations,playerIds):
             ###################
             dice_throw = dice()[:j]
             #UPGRADE 4 HANDLING
-            if state[2][player][3] and playerIds[player]>=1:#choose to rethrow random bot has no use of rethrow 
+            if state[3][player][3] and playerIds[player]>=1:#choose to rethrow random bot has no use of rethrow 
                 state_copy = copy.deepcopy(state)
                 coins_before_payout = state_copy[0][player]
                 Machikoro.distribution(state_copy,player,dice_throw)
@@ -280,10 +291,10 @@ def gameloop(iterations,playerIds):
             if len(dice_throw)==2 and not repeated and dice_throw[0]==dice_throw[1]:#if the two used dice are identical the player gets another turn but only once
                 repeated = True
             else:
-                player = (player+1)%len(state[0])
+                player = (player+1)%len(state[1])
                 repeated = False
             ###################
-        x = np.append(x,[np.sum(state[2],axis=1)],axis=0)
+        x = np.append(x,[np.sum(state[3],axis=1)],axis=0)
         round_count = np.append(round_count,round)
     return x[1:],round_count[1:]
 
@@ -327,8 +338,8 @@ class Node:
         self.isdice_node = isdice_node
         self.num_of_dice = num_of_dice
         self.dices = dices
-        dice_node = np.array([1,2]) if self.state[2][self.active_player][0] else np.array([1])
-        rethrow_node = np.array([0,1]) if self.state[2][self.active_player][3] else np.array([0])
+        dice_node = np.array([1,2]) if self.state[3][self.active_player][0] else np.array([1])
+        rethrow_node = np.array([0,1]) if self.state[3][self.active_player][3] else np.array([0])
         self.expandable_moves = calc_dice_state_probabilities(self.num_of_dice) if self.ischance else dice_node if isdice_node else rethrow_node if isrethrow_node else game.get_valid_moves(state,active_player)
         self.visit_count = 0
         self.value_sum = 0
@@ -368,7 +379,7 @@ class Node:
         if self.ischance:
             for dices in self.expandable_moves.keys():
                 child_state = copy.deepcopy(self.state)
-                can_rethrow = self.state[2][self.active_player][3] and (self.parent is None or self.parent.isrethrow_node == False)
+                can_rethrow = self.state[3][self.active_player][3] and (self.parent is None or self.parent.isrethrow_node == False)
                 if not can_rethrow:#if no rethrow is possible the state distributes based on the dices
                     self.game.distribution(child_state,self.active_player,np.array([int(x) for x in dices]))
                 child = Node(self.game,self.args,child_state,self.active_player,self,None,False,False,can_rethrow,len(dices),dices)
@@ -397,7 +408,7 @@ class Node:
             index = r.choice(np.where(self.expandable_moves!=-1)[0])
             action = self.expandable_moves[index]
             child_state = self.game.get_next_state(copy.deepcopy(self.state),self.active_player,action)
-            child = Node(self.game,self.args,child_state,(self.active_player+1)%len(child_state[0]),self,action,False,True,False,0)
+            child = Node(self.game,self.args,child_state,(self.active_player+1)%len(child_state[1]),self,action,False,True,False,0)
             self.children[action] = child
             self.expandable_moves[index] = -1
 
@@ -420,7 +431,7 @@ class Node:
         winner, is_terminal = self.game.is_terminated(rollout_state)
         while not is_terminal:
             #choose number of dice
-            d = dice(dice_choice) if dice_choice is not None else (dice(1) if not rollout_state[2][player][0] else dice(r.choice([1,2])))
+            d = dice(dice_choice) if dice_choice is not None else (dice(1) if not rollout_state[3][player][0] else dice(r.choice([1,2])))
             #choose to rethrow will not be simulated due to random playout making it unnecissary
             #distribution
             self.game.distribution(rollout_state,player,d)
@@ -429,8 +440,8 @@ class Node:
             action = r.choice(v)
             rollout_state = self.game.get_next_state(rollout_state,player,action)
             #change players turn, unless doublets
-            if not rollout_state[2][player][2] or (len(d) == 2 and d[0] != d[1]):
-                player = (player+1)%len(rollout_state[0])
+            if not rollout_state[3][player][2] or (len(d) == 2 and d[0] != d[1]):
+                player = (player+1)%len(rollout_state[1])
                 dice_choice = None
             else:
                 dice_choice = len(d)
@@ -512,10 +523,14 @@ class MCTS:
                 maxi = val 
         return maxi+1
     
-machikoro = Machikoro()
-state = machikoro.get_initial_state(2)
-player = 0
-#state[2][0][3] = 1
+# machikoro = Machikoro()
+# state = machikoro.get_initial_state(2)
+# encoded = machikoro.get_encoded_state(state)
+# player = 0
+# print(state)
+# print(encoded)
+# print(len(encoded))
+#state[3][0][3] = 1
 # print(state)
 # print(machikoro.get_valid_moves(state,player))
 # encoded = machikoro.get_encoded_state(state)
